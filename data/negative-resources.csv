@@ -1,0 +1,5 @@
+﻿id,mechanism,vreg,local_bytes,dynamic_shared_bytes,resident_cta,kind
+B01,SourceOverlap,128,204,63696,2,candidate metadata
+B02,Radix baseline,64,28,76800,2,compiler / theoretical
+B02,Radix candidate,64,108,101184,2,compiler / theoretical
+B05-v1-Si-small,Fit/force v1,256,,,2,candidate metadata

@@ -1,0 +1,92 @@
+[
+  {
+    "id": "V1-P01",
+    "mechanism": "DPA4C model and compact canonical graph",
+    "origin": "inherited",
+    "claim": "Fixed architecture, radial interpolation, destination/source CSR, fused descriptor and backward recomputation, tiled fitting are upstream capabilities.",
+    "commits": "DeePMD 46fdc3e8b0c92524e85dad48ee00a8555a0a7595",
+    "source_files": "source/lmp/compact_canonical_graph_kokkos.h; source/op/pt/dpa4c/graph_compress.cu",
+    "evidence_ids": "BASE; PROTO",
+    "boundary": "Not claimed as a new model, graph format, or general fusion method."
+  },
+  {
+    "id": "V1-P02",
+    "mechanism": "Small NVT single-step RouteGraph",
+    "origin": "project specialization on inherited integrator",
+    "claim": "Guarded one-step route, generation validity and output-boundary composition; historical path enabled in the frozen defaults.",
+    "commits": "75e81e07172bcd476343019df44ba7f8ca696510",
+    "source_files": "components/lammps/overlays/src/KOKKOS/verlet_kokkos.cpp; components/runtime-plugins/nvt/fix_nvt_fused_kokkos.cpp",
+    "evidence_ids": "A00-Si-small; A00-CuNi-small",
+    "boundary": "Enablement commit is not proof of original invention. StepLoop is a distinct rejected experiment."
+  },
+  {
+    "id": "V1-P03",
+    "mechanism": "Finite NPT phases",
+    "origin": "project implementation using native scalar recurrence",
+    "claim": "Finite production/host recurrence/consumption; frozen guard allows up to 65536 atoms.",
+    "commits": "b10591bad9c8f884f1ab9857e3cc17188d0c0c1c; 8abfddcbe0c480e1236098a1594481a9e50c6bb8",
+    "source_files": "components/runtime-plugins/npt/npt_coroutine.cpp",
+    "evidence_ids": "A03-full; A03-md",
+    "boundary": "Small-case local timing does not isolate the medium-route benefit."
+  },
+  {
+    "id": "V1-P04",
+    "mechanism": "Device thermostat admission",
+    "origin": "project modification of an existing device recurrence",
+    "claim": "Separate guarded admission limit for NVT; medium admission later expanded to 1000000 atoms in the frozen defaults.",
+    "commits": "f5305130e96f3aaece7048f06122496a0d79165f; 67fbc15af2e55581390c32a9a14f2f33d47c562c",
+    "source_files": "components/lammps/overlays/src/KOKKOS/fix_nh_kokkos.cpp; components/lammps/overlays/src/KOKKOS/dpa_fast_step_kokkos.h",
+    "evidence_ids": "A01-Si-medium; A01-CuNi-medium",
+    "boundary": "Not a new thermostat; the local medium tests do not measure every admitted shape."
+  },
+  {
+    "id": "V1-P05",
+    "mechanism": "Outlined node VJP",
+    "origin": "project partitioning and dispatch",
+    "claim": "Separate node VJP under node-count and density guards.",
+    "commits": "8e389e9877e3aa4e31847f06fcce60bc9106bdec; a798c2f094e6b7021e6e1dfcf1f7ebd6f14b76d4",
+    "source_files": "src/node/node_runtime.cu; config/runtime-defaults.json",
+    "evidence_ids": "A02-md; A02-full",
+    "boundary": "The derivative mathematics is inherited; source presence is not per-run proof of route use."
+  },
+  {
+    "id": "V1-P06",
+    "mechanism": "Destination-only consumer-ready graph",
+    "origin": "project modification of upstream graph builder",
+    "claim": "Omit unused source-major and geometry payloads only for a compatible direct consumer.",
+    "commits": "1c2cd7ac029bfa35587f53506693ef205f43d074",
+    "source_files": "components/lammps-deepmd-plugin/src/compact_canonical_graph_kokkos.h; components/deepmd-op/overlays/op/pt/dpa4c/graph_compress.cu",
+    "evidence_ids": "A06",
+    "boundary": "Canonical CSR and device-resident graph are inherited. ABI mismatch fails closed rather than silently falling back."
+  },
+  {
+    "id": "V1-P07",
+    "mechanism": "Lane-owned forward normalizer",
+    "origin": "project scheduling specialization",
+    "claim": "Replace shared normalizer exchange by lane-owned values and shuffles in selected packed/padded templates.",
+    "commits": "652bfc081e398103fbce9d92b9b9aeb9ce2ded38; 8b473d8424df5b1b7f006a6bc252858f0647a28e",
+    "source_files": "src/forward/forward_runtime.cu",
+    "evidence_ids": "A04; A05",
+    "boundary": "No model change or new approximate normalization; different template routes have different tests."
+  },
+  {
+    "id": "V1-P08",
+    "mechanism": "Output/snapshot and host paths",
+    "origin": "project runtime integration",
+    "claim": "Owned async restart, bulk dispatch, shared snapshots and Python API/GC fastpaths.",
+    "commits": "4343d686c8697571a5530b5c12f56e03fecdc0ed; 58eb3bdc416b38871ca8d79e12b3da47ac0cdefc; ac007219d9e9a16c53a070df2fee968546f1f683; 81c261e4cfe0464348c6716a4bd8ceb1d4b02735; db61c828a1c70b7822cb017fcb50fe0e7360c7b0; 7340eec626e6361d6faa8996c5b5a32e7e699347",
+    "source_files": "src/runtime/device_restart.cu; src/runtime/zerocopy_restart.cpp; tools/build/python_overlay.py",
+    "evidence_ids": "A05-Si-large-full; A07; G01",
+    "boundary": "Native restart semantics, file formats and hashing are inherited requirements; GC has no independent nine-case effect."
+  },
+  {
+    "id": "V1-P09",
+    "mechanism": "Scale and completion-boundary analysis",
+    "origin": "analysis of existing project measurements",
+    "claim": "Separate exposed control, backend resource shape and required completion work, with scoped negative-result lessons.",
+    "commits": "8b473d8424df5b1b7f006a6bc252858f0647a28e (selected bundle only)",
+    "source_files": "manuscript and retained measurements",
+    "evidence_ids": "P01; N19C; A00-A07; B01-B12",
+    "boundary": "No learned optimal dispatcher, common-baseline causal decomposition, held-out predictor, cross-hardware or cross-model generality claim."
+  }
+]

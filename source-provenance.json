@@ -1,0 +1,6 @@
+{
+  "git_commit": "8b473d8424df5b1b7f006a6bc252858f0647a28e",
+  "git_branch": null,
+  "kind": "historical-source-lineage",
+  "note": "This identifies the original project snapshot, not a future GitHub packaging commit. It does not certify rebuilt binaries."
+}

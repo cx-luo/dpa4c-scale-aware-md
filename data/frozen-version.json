@@ -1,0 +1,39 @@
+{
+  "selected_on": "2026-10-28",
+  "study_scope": "single-PPU, fixed-model systems case study",
+  "source_commit": "8b473d8424df5b1b7f006a6bc252858f0647a28e",
+  "score_type": "measured complete nine-case development evaluation",
+  "score": 3.7490935717621388,
+  "verified": false,
+  "audit": {
+    "status": "not_run",
+    "checked_intervals": 0
+  },
+  "bundle_hashes": {
+    "engine": "1c04123143bbbf6ca45f00d4264e35c7a18c9f9fc74c4542a9f524b09312443e",
+    "chain": "9a06295b3d5a07e3cbd9ab5dbf09d5190bdba2e1da55a8f3748e1e1be6bbb2d0",
+    "core_py": "549765264e9dddf6185470430305a7134cc3be746d0226ce7baf69c95e812f68",
+    "backend": "d1c54d1774bd143d58d3d403ca54e401644736f10dfcabb3ec57724f80c748c6",
+    "model": "6ab078d8b5f2a3e6ed2adbfefefa5e4be2244bc2c83f7db58bef126657d342e7",
+    "bundle": "6f649340a7c67c8f51816eeac290c0fda1964f4d05f693880989f4258180f128"
+  },
+  "image_digest_sha256": "dfb9b60bd3db22c8662365ccdcac196267c80ddf58d777da1203596304c4555d",
+  "config_bindings": {
+    "dev.json": {
+      "recorded": "2dcd92ab8ecee9f86af27a83f8c4e837213c432b83db1313a628d4cf74f978af",
+      "recovered": "2dcd92ab8ecee9f86af27a83f8c4e837213c432b83db1313a628d4cf74f978af",
+      "matched": true
+    },
+    "tolerances.json": {
+      "recorded": "68122d775d4d592da9e7873e37744ac711b94ae2c8af4ab52efcf4235dba82d5",
+      "recovered": "68122d775d4d592da9e7873e37744ac711b94ae2c8af4ab52efcf4235dba82d5",
+      "matched": true
+    },
+    "baseline-engine.json": {
+      "recorded": "d006c5609b04229f4d37e118aed49fa8b7958d7d29ac0ce7b4a83aab2b466295",
+      "recovered": "d006c5609b04229f4d37e118aed49fa8b7958d7d29ac0ce7b4a83aab2b466295",
+      "matched": true
+    }
+  },
+  "evaluator_source_status": "Recovered 2026-10-28; matching protocol and recorded config hashes; no contemporaneous evaluator-code hash in the result. Scope reconstruction, not an independent rerun."
+}

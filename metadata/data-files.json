@@ -1,0 +1,118 @@
+[
+  {
+    "path": "data/nine-v1-repeats.csv",
+    "sha256": "67049eccd6e5b74b87529d14b216f575c6f5f9c4e213fe50263454e4213155d6",
+    "source": "Paper A curated data; snapshot 2026-10-28"
+  },
+  {
+    "path": "data/nine-results.csv",
+    "sha256": "4388315c4a13e4428a47b87b8ad7ad0f50ee687a804d4a1375a727172c37cbb2",
+    "source": "Paper A curated data; snapshot 2026-10-28"
+  },
+  {
+    "path": "data/group-results.csv",
+    "sha256": "b0f5832607ac131c698e4e114bf15c25c2cbf93d50ec8d83533990873866a03a",
+    "source": "Paper A curated data; snapshot 2026-10-28"
+  },
+  {
+    "path": "data/nine-gates.csv",
+    "sha256": "16cfe5c965c9b9d7732a04632274e15aa16c9c628d8c6bba238c6a493b9d2910",
+    "source": "Paper A curated data; snapshot 2026-10-28"
+  },
+  {
+    "path": "data/correctness-coverage.json",
+    "sha256": "0c238c0535cf60eff0b286abf831f67cf10f0c3c7c5a814a886a4331a35f107b",
+    "source": "Paper A curated data; snapshot 2026-10-28"
+  },
+  {
+    "path": "data/numeric-tolerances.json",
+    "sha256": "78e6c8ac7b9be36d3baeac5e3600ea7ce5e0fdcfd77138b8dd5344d8c6322841",
+    "source": "Paper A curated data; snapshot 2026-10-28"
+  },
+  {
+    "path": "data/replay-thresholds.csv",
+    "sha256": "978693b4344ae1a1e28c8aad2051bd611ea90f10ecf82aa1d972a73f09274612",
+    "source": "Paper A curated data; snapshot 2026-10-28"
+  },
+  {
+    "path": "data/contribution-provenance.json",
+    "sha256": "1377a155ef046dc0b7f11f773ae355002d503ea8a74de5a9fdbbf3b9b6ceabc3",
+    "source": "Paper A curated data; snapshot 2026-10-28"
+  },
+  {
+    "path": "data/evidence-index.json",
+    "sha256": "1398a40ee9c5364b68695761577c0da1a4342ccb03a64affe8e7a0a8975c4bdd",
+    "source": "Paper A curated data; snapshot 2026-10-28"
+  },
+  {
+    "path": "data/workload.csv",
+    "sha256": "27451fa5fbe3f1d3682fab61a544f4ef9e2e9b23ed7659ab829c2e3d917404b3",
+    "source": "Paper A curated data; snapshot 2026-10-28"
+  },
+  {
+    "path": "data/local-results.csv",
+    "sha256": "e411a01b4be71222fe8ba50b2fb440c554f77036446fc0fe2cd2a6d92a5303d6",
+    "source": "Paper A curated data; snapshot 2026-10-28"
+  },
+  {
+    "path": "data/profile-busy.csv",
+    "sha256": "19b8c82e3e52bbaf26949ffc54ee0d93bc6beb138ebdbceefda22b47effac9ab",
+    "source": "Paper A curated data; snapshot 2026-10-28"
+  },
+  {
+    "path": "data/profile-families.csv",
+    "sha256": "acac11c688515509d395e217941dce90c3f643583c1edd416cf8fadd3c2ed8f8",
+    "source": "Paper A curated data; snapshot 2026-10-28"
+  },
+  {
+    "path": "data/scope-effects.csv",
+    "sha256": "ba05c64386a013da2eec149e4a79e2cf30621363a8191db739aaebaad6e4dba0",
+    "source": "Paper A curated data; snapshot 2026-10-28"
+  },
+  {
+    "path": "data/capture-boundary.csv",
+    "sha256": "ceb3ac04bab2f5461ecbcefb1e87c4853a90dac21ec6ab5ba56823b798407a57",
+    "source": "Paper A curated data; snapshot 2026-10-28"
+  },
+  {
+    "path": "data/output-bytes.csv",
+    "sha256": "ec0bc87cc7468dc3d0a30bbb5309c585356d28e81b39356e7f523a0e235a0f91",
+    "source": "Paper A curated data; snapshot 2026-10-28"
+  },
+  {
+    "path": "data/historical-scores.csv",
+    "sha256": "89b43999714280eae1d2bd52053a0db1d884f1f2f41bfcc7327e882f7de0b8ae",
+    "source": "Paper A curated data; snapshot 2026-10-28"
+  },
+  {
+    "path": "data/negative-results.csv",
+    "sha256": "152f2046122ed832547e9e63a13b04cb8ad910200ccd2ce477d2ea4ba862523f",
+    "source": "Paper A curated data; snapshot 2026-10-28"
+  },
+  {
+    "path": "data/negative-resources.csv",
+    "sha256": "b84910f8adcae51069817e6281b14f587e27c051ff3ef4888cef36ecc534420a",
+    "source": "Paper A curated data; snapshot 2026-10-28"
+  },
+  {
+    "path": "data/negative-endpoints.csv",
+    "sha256": "de38955bf0187acccb9e8f2d4cdab57b15ff9d71c657398f4f9a541f1f7b6513",
+    "source": "Paper A curated data; snapshot 2026-10-28"
+  },
+  {
+    "path": "data/performance-acceptance-examples.csv",
+    "sha256": "0b1588f64b1453f22c81fc514aa38c5031859e2ad76165834f5232ff7a282257",
+    "source": "Paper A curated data; snapshot 2026-10-28"
+  },
+  {
+    "path": "data/screening-validation-status.json",
+    "sha256": "c7553944da0cfb39df65d84bf19d07cf5fa23b8fb10eeb13decc6d5a76c83c92",
+    "source": "Paper A curated data; snapshot 2026-10-28"
+  },
+  {
+    "path": "data/frozen-version.json",
+    "sha256": "36f4103489dce11b6951b3d0a1683c85a82d357076ab4e7fbfefb748c501dc5e",
+    "source_sha256": "f506a21637244e8bebdd43aed2edbb51f8f6bb74c0005c38a97afe75e57f9a10",
+    "transformation": "omit private publication-workflow fields; retain scientific identity and results"
+  }
+]

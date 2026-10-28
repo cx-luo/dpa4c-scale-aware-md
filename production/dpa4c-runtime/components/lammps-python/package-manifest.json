@@ -1,0 +1,25 @@
+{
+  "changed_from_upstream": [
+    "lammps/core.py"
+  ],
+  "files": {
+    "lammps/__init__.py": "1532aa3fbaf7a0894c27ac4deca1dd3e20e52467cf6b88e1b2f7a9ad5d181dfe",
+    "lammps/constants.py": "b0cdb723150da63b6fae01368f683f6e5ea9cebb97cab2b117fe93b57ef56088",
+    "lammps/core.py": "549765264e9dddf6185470430305a7134cc3be746d0226ce7baf69c95e812f68",
+    "lammps/data.py": "4a49b2a0d1578f57392e0263b2f6c38120f4caeda3522c09c1c116347237ca6d",
+    "lammps/formats.py": "ff2e303dcf25442e93536a16b19a5f1962d2bbbbe13b7c98daa20099cdd21e7e",
+    "lammps/ipython/__init__.py": "5da207acb898135db627b78465277b107172f0c87be452f704454de7e085ab54",
+    "lammps/ipython/magics.py": "703c7538a64e1384dea9e5312fd84d8347d07a5bd3868cf6c74f0cacb37c7143",
+    "lammps/ipython/wrapper.py": "60048b9e1198403688b51f6bf74cfa8adfce4ce6759fac4e18f1f6c28968b245",
+    "lammps/mliap/__init__.py": "ffbc154c73eee1fddb9500b5034607fd2ed7dc153792de295b77412b235e4063",
+    "lammps/mliap/loader.py": "3e7324196d3e4173d4bfe9a89415edc7ce0f9093559cc6fd12cf6394aa5069cf",
+    "lammps/mliap/mliap_unified_abc.py": "cfc4ae563ee38cf4661246d00ddd2c9447223780b10633cf1b9910560ae6f89f",
+    "lammps/mliap/mliap_unified_lj.py": "f695cdfc6387ea827ae03b3923dbe3c5eab1d7037fa4a53aca9eb60de9827299",
+    "lammps/mliap/pytorch.py": "d2d49742514af23ada3230335784ea5286366c1bcae90018949da26b89925c91",
+    "lammps/numpy_wrapper.py": "989694195c1f4d831b1c9d2490ceb1670caa7f7e1c88c4c3565965d3ffc483a5",
+    "lammps/pylammps.py": "ca27fae28e78d92b577999aa04155be18f06a35f5519da6cf7b1dbfed060d551"
+  },
+  "package": "lammps",
+  "schema_version": 1,
+  "upstream_core_sha256": "48c909df3e447a9aaeedd2171b74c5d42b58bc11f941188c96f8b1fdd879b2bf"
+}

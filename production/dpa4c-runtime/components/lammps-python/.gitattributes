@@ -1,0 +1,2 @@
+# Preserve the exact locked upstream bytes, including its terminal blank line.
+package/lammps/mliap/loader.py whitespace=-blank-at-eof

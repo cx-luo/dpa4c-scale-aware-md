@@ -1,0 +1,24 @@
+{
+  "date": "2026-10-28",
+  "status": "CPU_AND_PACKAGING_CHECKS_PASS",
+  "source_check": {
+    "status": "PASS",
+    "source_commit": "8b473d8424df5b1b7f006a6bc252858f0647a28e",
+    "source_files": 175,
+    "data_files": 23,
+    "python_overlay_files": 15,
+    "failures": [],
+    "scope": "source/data integrity; no native execution or physical validation"
+  },
+  "score_recomputed": 3.7490935717621388,
+  "cpu_unit_tests": 14,
+  "python_syntax_files": 37,
+  "bash_syntax_files": 6,
+  "quantitative_plots_regenerated": 6,
+  "publication_pattern_scan": "no matching findings; heuristic, not exhaustive security review",
+  "native_build": "not_run",
+  "ppu_or_md_experiments": "not_run",
+  "github_upload": "not_performed",
+  "project_specific_license": "awaiting maintainer selection",
+  "upstream_archives_sha256_verified": true
+}

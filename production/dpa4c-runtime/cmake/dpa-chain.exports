@@ -1,0 +1,10 @@
+{
+  global:
+    _ZN12deepmd_dpa4c19launch_raw_force_c8*;
+    _ZN12deepmd_dpa4c21launch_raw_forward_c8*;
+    _ZN12deepmd_dpa4c21launch_direct_node_c8*;
+    dpa_chain_*;
+    dpa_narrow_geometry_epoch;
+  local:
+    *;
+};

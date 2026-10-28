@@ -1,0 +1,621 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
+#include <string.h>
+
+#include <cassert>
+#include <iomanip>
+#include <iostream>
+#include <limits>
+#include <map>
+#include <sstream>
+
+#include "atom.h"
+#include "citeme.h"
+#include "comm.h"
+#include "compute.h"
+#include "domain.h"
+#include "error.h"
+#include "fix.h"
+#include "force.h"
+#include "memory.h"
+#include "modify.h"
+#include "neigh_list.h"
+#include "neigh_request.h"
+#include "neighbor.h"
+#include "output.h"
+#include "update.h"
+#include "utils.h"
+#if LAMMPS_VERSION_NUMBER >= 20210831
+// in lammps #2902, fix_ttm members turns from private to protected
+#define USE_TTM 1
+#include "fix_ttm_dp.h"
+#endif
+
+#include "deepmd_version.h"
+#include "pair_base.h"
+
+using namespace LAMMPS_NS;
+using namespace std;
+
+int PairDeepBaseModel::get_node_rank() {
+  int rank = 0;
+  MPI_Comm_rank(world, &rank);
+
+#ifdef MPI_COMM_TYPE_SHARED
+  // LAMMPS may run on a partition or an embedding-provided subcommunicator.
+  // Split that communicator by shared-memory domain so independent LAMMPS
+  // instances never enter collectives on MPI_COMM_WORLD.
+  MPI_Comm node_comm;
+  MPI_Comm_split_type(world, MPI_COMM_TYPE_SHARED, rank, MPI_INFO_NULL,
+                      &node_comm);
+  int node_rank = 0;
+  MPI_Comm_rank(node_comm, &node_rank);
+  MPI_Comm_free(&node_comm);
+  return node_rank;
+#else
+  // LAMMPS's serial MPI stubs predate MPI-3 and do not provide
+  // MPI_Comm_split_type.  Their only communicator contains one rank, so its
+  // communicator rank is also the correct node-local rank.
+  return rank;
+#endif
+}
+
+std::string PairDeepBaseModel::get_file_content(const std::string& model) {
+  // .pt2 (AOTInductor) models do not support in-memory loading.
+  // Return empty so that init() loads from the file path directly.
+  if (model.size() >= 4 && model.compare(model.size() - 4, 4, ".pt2") == 0) {
+    return std::string();
+  }
+  int myrank = 0, root = 0;
+  MPI_Comm_rank(world, &myrank);
+  int nchar = 0;
+  std::string file_content;
+  if (myrank == root) {
+    deepmd_compat::read_file_to_string(model, file_content);
+    nchar = file_content.size();
+  }
+  MPI_Bcast(&nchar, 1, MPI_INT, root, world);
+  char* buff = (char*)malloc(sizeof(char) * nchar);
+  if (myrank == root) {
+    memcpy(buff, file_content.c_str(), sizeof(char) * nchar);
+  }
+  MPI_Bcast(buff, nchar, MPI_CHAR, root, world);
+  file_content.resize(nchar);
+  for (unsigned ii = 0; ii < nchar; ++ii) {
+    file_content[ii] = buff[ii];
+  }
+  free(buff);
+  return file_content;
+}
+
+std::vector<std::string> PairDeepBaseModel::get_file_content(
+    const std::vector<std::string>& models) {
+  std::vector<std::string> file_contents(models.size());
+  for (unsigned ii = 0; ii < models.size(); ++ii) {
+    file_contents[ii] = get_file_content(models[ii]);
+  }
+  return file_contents;
+}
+
+void PairDeepBaseModel::parse_spin_vector_option(
+    vector<double>& values,
+    const string& option,
+    int& iarg,
+    int narg,
+    char** arg,
+    bool (*is_key)(const string&)) {
+  // PairDeepMD and PairDeepSpin intentionally share this parser so their
+  // bounds checks, keyword rejection, and numeric validation cannot drift.
+  values.resize(numb_types_spin);
+  for (int ii = 0; ii < numb_types_spin; ++ii) {
+    if (iarg + ii + 1 >= narg || is_key(arg[iarg + ii + 1])) {
+      error->all(FLERR, "Illegal " + option + ", the dimension should be " +
+                            to_string(numb_types_spin));
+    }
+    values[ii] = utils::numeric(FLERR, arg[iarg + ii + 1], false, lmp);
+  }
+  iarg += numb_types_spin + 1;
+}
+
+void PairDeepBaseModel::make_fparam_from_compute(vector<double>& fparam) {
+  assert(do_compute_fparam);
+
+  int icompute = modify->find_compute(compute_fparam_id);
+  if (icompute < 0) {
+    error->all(FLERR,
+               "compute " + compute_fparam_id + " for fparam is not found");
+  }
+
+  Compute* compute = modify->compute[icompute];
+  if (!compute) {
+    error->all(FLERR,
+               "compute " + compute_fparam_id + " for fparam is invalid");
+  }
+  fparam.resize(dim_fparam);
+
+  if (dim_fparam == 1) {
+    if (!compute->scalar_flag) {
+      error->all(FLERR, "compute " + compute_fparam_id +
+                            " does not provide a scalar for fparam");
+    }
+    if (!(compute->invoked_flag & Compute::INVOKED_SCALAR)) {
+      compute->compute_scalar();
+      compute->invoked_flag |= Compute::INVOKED_SCALAR;
+    }
+    fparam[0] = compute->scalar;
+  } else if (dim_fparam > 1) {
+    if (!compute->vector_flag) {
+      error->all(FLERR, "compute " + compute_fparam_id +
+                            " does not provide a vector for fparam");
+    }
+    if (!(compute->invoked_flag & Compute::INVOKED_VECTOR)) {
+      compute->compute_vector();
+      compute->invoked_flag |= Compute::INVOKED_VECTOR;
+    }
+    // Variable-length computes update size_vector when they are invoked, so
+    // validate the realized length rather than their initial zero capacity.
+    if (compute->size_vector < dim_fparam) {
+      error->all(FLERR, "compute " + compute_fparam_id +
+                            " vector is shorter than fparam dimension");
+    }
+    double* cvector = compute->vector;
+    if (!cvector) {
+      error->all(FLERR, "compute " + compute_fparam_id +
+                            " returned a null vector for fparam");
+    }
+    for (int jj = 0; jj < dim_fparam; ++jj) {
+      fparam[jj] = cvector[jj];
+    }
+  }
+}
+
+void PairDeepBaseModel::make_fparam_from_fix(vector<double>& fparam) {
+  assert(do_fix_fparam);
+
+  int ifix = modify->find_fix(fix_fparam_id);
+  if (ifix < 0) {
+    error->all(FLERR, "fix id is not found: " + fix_fparam_id);
+  }
+  Fix* fix = modify->fix[ifix];
+
+  if (!fix) {
+    error->all(FLERR, "fix id is not found: " + fix_fparam_id);
+  }
+  fparam.resize(dim_fparam);
+
+  if (fix_fparam_index < 0) {
+    if (dim_fparam == 1) {
+      if (!fix->scalar_flag) {
+        error->all(FLERR, "fix " + fix_fparam_id +
+                              " does not provide a scalar for fparam");
+      }
+      fparam[0] = fix->compute_scalar();
+    } else if (dim_fparam > 1) {
+      if (!fix->scalar_flag) {
+        error->all(FLERR, "fix " + fix_fparam_id +
+                              " does not provide a scalar for fparam");
+      }
+      double value = fix->compute_scalar();
+      for (int jj = 0; jj < dim_fparam; ++jj) {
+        fparam[jj] = value;
+      }
+    }
+  } else {
+    if (!fix->vector_flag) {
+      error->all(FLERR, "fix " + fix_fparam_id +
+                            " does not provide a vector for fparam");
+    }
+    if (fix_fparam_index > fix->size_vector - dim_fparam) {
+      error->all(FLERR, "fix " + fix_fparam_id +
+                            " vector is shorter than fparam dimension");
+    }
+    for (int jj = 0; jj < dim_fparam; ++jj) {
+      fparam[jj] = fix->compute_vector(fix_fparam_index + jj);
+    }
+  }
+}
+
+void PairDeepBaseModel::make_aparam_from_compute(vector<double>& aparam) {
+  assert(do_compute_aparam);
+
+  int icompute = modify->find_compute(compute_aparam_id);
+  if (icompute < 0) {
+    error->all(FLERR,
+               "compute " + compute_aparam_id + " for aparam is not found");
+  }
+
+  Compute* compute = modify->compute[icompute];
+  if (!compute) {
+    error->all(FLERR,
+               "compute " + compute_aparam_id + " for aparam is invalid");
+  }
+  if (!compute->peratom_flag) {
+    error->all(FLERR, "compute " + compute_aparam_id +
+                          " does not provide per-atom data for aparam");
+  }
+  // LAMMPS represents per-atom vectors with zero columns and per-atom
+  // arrays with a positive column count. Validate that layout before
+  // invoking the compute so the corresponding result pointer is safe to use.
+  if (dim_aparam == 1 && compute->size_peratom_cols != 0) {
+    error->all(FLERR, "compute " + compute_aparam_id +
+                          " does not provide a per-atom vector for aparam");
+  }
+  if (dim_aparam > 1 && compute->size_peratom_cols < dim_aparam) {
+    error->all(FLERR, "compute " + compute_aparam_id +
+                          " array has fewer columns than aparam dimension");
+  }
+  int nlocal = atom->nlocal;
+  aparam.resize(static_cast<size_t>(dim_aparam) * nlocal);
+
+  if (!(compute->invoked_flag & Compute::INVOKED_PERATOM)) {
+    compute->compute_peratom();
+    compute->invoked_flag |= Compute::INVOKED_PERATOM;
+  }
+  // Empty MPI subdomains legitimately have no per-atom storage. The result is
+  // already an empty vector, so do not require output pointers in that case.
+  if (nlocal == 0) {
+    return;
+  }
+  if (dim_aparam == 1) {
+    double* cvector = compute->vector_atom;
+    if (!cvector) {
+      error->one(FLERR, "compute " + compute_aparam_id +
+                            " returned a null per-atom vector for aparam");
+    }
+    aparam.assign(cvector, cvector + nlocal);
+  } else if (dim_aparam > 1) {
+    double** carray = compute->array_atom;
+    if (!carray) {
+      error->one(FLERR, "compute " + compute_aparam_id +
+                            " returned a null per-atom array for aparam");
+    }
+    for (int ii = 0; ii < nlocal; ++ii) {
+      if (!carray[ii]) {
+        error->one(FLERR, "compute " + compute_aparam_id +
+                              " returned a null per-atom array row for aparam");
+      }
+      for (int jj = 0; jj < dim_aparam; ++jj) {
+        aparam[ii * dim_aparam + jj] = carray[ii][jj];
+      }
+    }
+  }
+}
+
+#ifdef USE_TTM
+void PairDeepBaseModel::make_ttm_fparam(vector<double>& fparam) {
+  assert(do_ttm);
+  // get ttm_fix
+  const FixTTMDP* ttm_fix = NULL;
+  for (int ii = 0; ii < modify->nfix; ii++) {
+    if (string(modify->fix[ii]->id) == ttm_fix_id) {
+      ttm_fix = dynamic_cast<FixTTMDP*>(modify->fix[ii]);
+    }
+  }
+  if (!ttm_fix) {
+    error->all(FLERR, "fix ttm id is not found: " + ttm_fix_id);
+  }
+
+  fparam.resize(dim_fparam);
+
+  vector<int> nnodes = ttm_fix->get_nodes();
+  int nxnodes = nnodes[0];
+  int nynodes = nnodes[1];
+  int nznodes = nnodes[2];
+  double*** const T_electron = ttm_fix->get_T_electron();
+
+  int numb_effective_nodes = 0;
+  double total_Te = 0;
+
+  // loop over grids to get average electron temperature
+  for (int ixnode = 0; ixnode < nxnodes; ixnode++) {
+    for (int iynode = 0; iynode < nynodes; iynode++) {
+      for (int iznode = 0; iznode < nznodes; iznode++) {
+        if (T_electron[ixnode][iynode][iznode] != 0) {
+          numb_effective_nodes += 1;
+          total_Te += T_electron[ixnode][iynode][iznode];
+        }
+      }
+    }
+  }
+
+  fparam[0] = total_Te / numb_effective_nodes;
+}
+#endif
+
+#ifdef USE_TTM
+void PairDeepBaseModel::make_ttm_aparam(vector<double>& daparam) {
+  assert(do_ttm);
+  // get ttm_fix
+  const FixTTMDP* ttm_fix = NULL;
+  for (int ii = 0; ii < modify->nfix; ii++) {
+    if (string(modify->fix[ii]->id) == ttm_fix_id) {
+      ttm_fix = dynamic_cast<FixTTMDP*>(modify->fix[ii]);
+    }
+  }
+  if (!ttm_fix) {
+    error->all(FLERR, "fix ttm id is not found: " + ttm_fix_id);
+  }
+  // modify
+  double** x = atom->x;
+  int* mask = atom->mask;
+  int nlocal = atom->nlocal;
+  vector<int> nnodes = ttm_fix->get_nodes();
+  int nxnodes = nnodes[0];
+  int nynodes = nnodes[1];
+  int nznodes = nnodes[2];
+  double*** const T_electron = ttm_fix->get_T_electron();
+  double dx = domain->xprd / nxnodes;
+  double dy = domain->yprd / nynodes;
+  double dz = domain->zprd / nynodes;
+  // resize daparam
+  daparam.resize(nlocal);
+  // loop over atoms to assign aparam
+  for (int ii = 0; ii < nlocal; ii++) {
+    if (mask[ii] & ttm_fix->groupbit) {
+      double xscale = (x[ii][0] - domain->boxlo[0]) / domain->xprd;
+      double yscale = (x[ii][1] - domain->boxlo[1]) / domain->yprd;
+      double zscale = (x[ii][2] - domain->boxlo[2]) / domain->zprd;
+      int ixnode = static_cast<int>(xscale * nxnodes);
+      int iynode = static_cast<int>(yscale * nynodes);
+      int iznode = static_cast<int>(zscale * nznodes);
+      // https://stackoverflow.com/a/1907585/9567349
+      ixnode = ((ixnode % nxnodes) + nxnodes) % nxnodes;
+      iynode = ((iynode % nynodes) + nynodes) % nynodes;
+      iznode = ((iznode % nznodes) + nznodes) % nznodes;
+      daparam[ii] = T_electron[ixnode][iynode][iznode];
+    }
+  }
+}
+#endif
+
+void PairDeepBaseModel::cum_sum(std::map<int, int>& sum,
+                                std::map<int, int>& vec) {
+  sum[0] = 0;
+  for (int ii = 1; ii < vec.size(); ++ii) {
+    sum[ii] = sum[ii - 1] + vec[ii - 1];
+  }
+}
+
+PairDeepBaseModel::PairDeepBaseModel(
+    LAMMPS* lmp,
+    const char* cite_user_package,
+    deepmd_compat::DeepBaseModel& deep_model,
+    deepmd_compat::DeepBaseModelDevi& deep_model_devi)
+    : Pair(lmp),
+      deep_base(deep_model),
+      deep_base_model_devi(deep_model_devi)
+
+{
+  if (lmp->citeme) {
+    lmp->citeme->add(cite_user_package);
+  }
+  if (strcmp(update->unit_style, "lj") == 0) {
+    error->all(FLERR,
+               "Pair deepmd does not support unit style lj. Please use other "
+               "unit styles like metal or real unit instead. You may set it by "
+               "\"units metal\" or \"units real\"");
+  }
+  ener_unit_cvt_factor = force->boltz / 8.617343e-5;
+  dist_unit_cvt_factor = force->angstrom;
+  force_unit_cvt_factor = ener_unit_cvt_factor / dist_unit_cvt_factor;
+
+  restartinfo = 1;
+  // Enable the compute centroid/stress/atom interface for the atomic virial.
+#if LAMMPS_VERSION_NUMBER >= 20201130
+  centroidstressflag = CENTROID_AVAIL;
+#else
+  centroidstressflag = 2;
+#endif
+  pppmflag = 1;
+  respa_enable = 0;
+  writedata = 0;
+
+  cutoff = 0.;
+  numb_types = 0;
+  numb_types_spin = 0;
+  numb_models = 0;
+  out_freq = 0;
+  out_each = 0;
+  out_rel = 0;
+  out_rel_v = 0;
+  stdf_comm_buff_size = 0;
+  counts = nullptr;
+  displacements = nullptr;
+  tagsend = nullptr;
+  tagrecv = nullptr;
+  stdfsend = nullptr;
+  stdfrecv = nullptr;
+  eps = 0.;
+  eps_v = 0.;
+  scale = NULL;
+  do_ttm = false;
+  dim_fparam = 0;
+  dim_aparam = 0;
+  dim_chg_spin = 0;
+  do_compute_fparam = false;
+  do_fix_fparam = false;
+  fix_fparam_index = -1;
+  do_compute_aparam = false;
+  single_model = false;
+  multi_models_mod_devi = false;
+  multi_models_no_mod_devi = false;
+  is_restart = false;
+  // set comm size needed by this Pair
+  comm_reverse = 1;
+
+  // The model summary is emitted by the derived constructor: the referenced
+  // model members are not yet constructed during base construction.
+}
+
+void PairDeepBaseModel::print_summary(const string pre) const {
+  if (comm->me == 0) {
+    // capture cout to a string, then call LAMMPS's utils::logmesg
+    // https://stackoverflow.com/a/4043813/9567349
+    std::stringstream buffer;
+    std::streambuf* sbuf = std::cout.rdbuf();
+    std::cout.rdbuf(buffer.rdbuf());
+
+    cout << "Summary of lammps deepmd module ..." << endl;
+    cout << pre << ">>> Info of deepmd-kit:" << endl;
+    deep_base.print_summary(pre);
+    cout << pre << ">>> Info of lammps module:" << endl;
+    cout << pre << "use deepmd-kit at:  " << STR_DEEPMD_ROOT << endl;
+    cout << pre << "source:             " << STR_GIT_SUMM << endl;
+    cout << pre << "source branch:      " << STR_GIT_BRANCH << endl;
+    cout << pre << "source commit:      " << STR_GIT_HASH << endl;
+    cout << pre << "source commit at:   " << STR_GIT_DATE << endl;
+    cout << pre << "build with inc:     " << STR_BACKEND_INCLUDE_DIRS << endl;
+    cout << pre << "build with lib:     " << STR_BACKEND_LIBRARY_PATH << endl;
+
+    std::cout.rdbuf(sbuf);
+    utils::logmesg(lmp, buffer.str());
+  }
+}
+
+PairDeepBaseModel::~PairDeepBaseModel() {
+  destroy_model_deviation_buffers();
+  if (allocated) {
+    memory->destroy(setflag);
+    memory->destroy(cutsq);
+    memory->destroy(scale);
+  }
+}
+
+void PairDeepBaseModel::ensure_model_deviation_buffers() {
+  if (counts == nullptr) {
+    memory->create(counts, comm->nprocs, "deepmd:counts");
+    memory->create(displacements, comm->nprocs, "deepmd:displacements");
+  }
+
+  const int ntotal = atom->natoms;
+  if (ntotal > stdf_comm_buff_size) {
+    memory->grow(stdfsend, ntotal, "deepmd:stdfsendall");
+    memory->grow(stdfrecv, ntotal, "deepmd:stdfrecvall");
+    memory->grow(tagsend, ntotal, "deepmd:tagsendall");
+    memory->grow(tagrecv, ntotal, "deepmd:tagrecvall");
+    stdf_comm_buff_size = ntotal;
+  }
+}
+
+void PairDeepBaseModel::destroy_model_deviation_buffers() {
+  memory->destroy(counts);
+  memory->destroy(displacements);
+  memory->destroy(stdfsend);
+  memory->destroy(stdfrecv);
+  memory->destroy(tagsend);
+  memory->destroy(tagrecv);
+  stdf_comm_buff_size = 0;
+}
+
+void PairDeepBaseModel::allocate() {
+  allocated = 1;
+  int n = atom->ntypes;
+
+  memory->create(setflag, n + 1, n + 1, "pair:setflag");
+  memory->create(cutsq, n + 1, n + 1, "pair:cutsq");
+  memory->create(scale, n + 1, n + 1, "pair:scale");
+
+  for (int i = 1; i <= n; i++) {
+    for (int j = i; j <= n; j++) {
+      setflag[i][j] = 0;
+      scale[i][j] = 0;
+    }
+  }
+  for (int i = 1; i <= numb_types; ++i) {
+    if (i > n) {
+      continue;
+    }
+    for (int j = i; j <= numb_types; ++j) {
+      if (j > n) {
+        continue;
+      }
+      setflag[i][j] = 1;
+      scale[i][j] = 1.0;
+    }
+  }
+}
+
+void PairDeepBaseModel::read_restart(FILE*) { is_restart = true; }
+
+void PairDeepBaseModel::write_restart(FILE*) {
+  // No pair state is stored in the restart; the model is reloaded from its
+  // path.
+}
+
+void PairDeepBaseModel::init_style() {
+#if LAMMPS_VERSION_NUMBER >= 20220324
+  neighbor->add_request(this, NeighConst::REQ_FULL);
+#else
+  int irequest = neighbor->request(this, instance_me);
+  neighbor->requests[irequest]->half = 0;
+  neighbor->requests[irequest]->full = 1;
+  // neighbor->requests[irequest]->newton = 2;
+#endif
+  if (out_each == 1) {
+    ensure_model_deviation_buffers();
+  }
+}
+
+double PairDeepBaseModel::init_one(int i, int j) {
+  if (i > numb_types || j > numb_types) {
+    char warning_msg[1024];
+    sprintf(warning_msg,
+            "Interaction between types %d and %d is set with deepmd, but will "
+            "be ignored.\n Deepmd model has only %d types, it only computes "
+            "the mulitbody interaction of types: 1-%d.",
+            i, j, numb_types, numb_types);
+    error->warning(FLERR, warning_msg);
+  }
+
+  if (setflag[i][j] == 0) {
+    scale[i][j] = 1.0;
+  }
+  scale[j][i] = scale[i][j];
+
+  return cutoff;
+}
+
+void* PairDeepBaseModel::extract(const char* str, int& dim) {
+  if (strcmp(str, "cut_coul") == 0) {
+    dim = 0;
+    return (void*)&cutoff;
+  }
+  if (strcmp(str, "scale") == 0) {
+    dim = 2;
+    return (void*)scale;
+  }
+  return NULL;
+}
+
+void ana_st(double& max,
+            double& min,
+            double& sum,
+            const vector<double>& vec,
+            const int& nloc) {
+  if (nloc == 0) {
+    return;
+  }
+  max = vec[0];
+  min = vec[0];
+  sum = vec[0];
+  for (unsigned ii = 1; ii < nloc; ++ii) {
+    if (vec[ii] > max) {
+      max = vec[ii];
+    }
+    if (vec[ii] < min) {
+      min = vec[ii];
+    }
+    sum += vec[ii];
+  }
+}
+
+void make_uniform_aparam(vector<double>& daparam,
+                         const vector<double>& aparam,
+                         const int& nlocal) {
+  unsigned dim_aparam = aparam.size();
+  daparam.resize(static_cast<size_t>(dim_aparam) * nlocal);
+  for (int ii = 0; ii < nlocal; ++ii) {
+    for (int jj = 0; jj < dim_aparam; ++jj) {
+      daparam[ii * dim_aparam + jj] = aparam[jj];
+    }
+  }
+}

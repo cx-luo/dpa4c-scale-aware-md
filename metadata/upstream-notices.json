@@ -1,0 +1,23 @@
+[
+  {
+    "path": "LICENSE",
+    "sha256": "e3a994d82e644b03a792a930f574002658412f62407f5fee083f2555c5f23118",
+    "component": "deepmd",
+    "archive_sha256": "612257609d76579d6401332596fcddee0ceb90eb720c0827faa8f6ab9b88aa0a",
+    "packaged_path": "LICENSES/DeePMD-LGPL-3.0.txt"
+  },
+  {
+    "path": "LICENSE",
+    "sha256": "be38e38d9482c2beae35408e413045b4363e0e067b0d9f31549047948637a7ed",
+    "component": "lammps",
+    "archive_sha256": "142b767b1f3343541c8780c62b28968ac62d873760788f3eb50b6ec4b35425c9",
+    "packaged_path": "LICENSES/LAMMPS-GPL-2.0.txt"
+  },
+  {
+    "path": "lib/kokkos/LICENSE",
+    "sha256": "c12f32e613739e0207af038b17b4caba7d6299263dadfe85272396c114ee35d4",
+    "component": "lammps",
+    "archive_sha256": "142b767b1f3343541c8780c62b28968ac62d873760788f3eb50b6ec4b35425c9",
+    "packaged_path": "LICENSES/Kokkos-Apache-2.0-with-LLVM-exceptions.txt"
+  }
+]

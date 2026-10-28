@@ -1,0 +1,4 @@
+﻿scale,geometric_speedup,throughput_gain_pct,wall_time_reduction_pct,evidence_ids
+small,5.244524295144638,424.4524295144638,80.93249370727872,N19C-Si-small;N19C-CuNi-small;N19C-MgO-small
+medium,3.0085268257756255,200.85268257756255,66.76114065420737,N19C-Si-medium;N19C-CuNi-medium;N19C-MgO-medium
+large,3.3397876145062035,233.97876145062037,70.05797627200756,N19C-Si-large;N19C-CuNi-large;N19C-MgO-large

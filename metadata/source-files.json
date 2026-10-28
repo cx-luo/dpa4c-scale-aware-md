@@ -1,0 +1,1589 @@
+{
+  "source_commit": "8b473d8424df5b1b7f006a6bc252858f0647a28e",
+  "files": [
+    {
+      "path": "production/dpa4c-runtime/.gitattributes",
+      "bytes": 19,
+      "sha256": "d60f352d0db1404c70afb4bb8b2ca3fd1c610572aa40720e8a0b7baa7885418c",
+      "git_blob_sha1": "6313b56c57848efce05faa7aa7e901ccfc2886ea",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/.gitattributes",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/.gitignore",
+      "bytes": 49,
+      "sha256": "3704b90c52db3f2c2a8b9d32254069409bd032d1e896a0ec53b4c6bce6e90b92",
+      "git_blob_sha1": "21e7895e273fa5e9d0234ff52e421e6c8c28bf62",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/.gitignore",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/CMakeLists.txt",
+      "bytes": 1005,
+      "sha256": "630c037a5c375995083c47f897ca32b20304dca5d6a87ce4d2dc421b381ae799",
+      "git_blob_sha1": "25017299cbf28014ee5b77d13a98f6cb8eb8f16a",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/CMakeLists.txt",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/README.md",
+      "bytes": 2513,
+      "sha256": "7301d4d21865b3551c26b6b5246c2183fb5b8f9b7c243397d0554bf92720ca81",
+      "git_blob_sha1": "64080fe19a2b2fe7861929979c9166a2a8bfc482",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/README.md",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/cmake/dpa-chain.exports",
+      "bytes": 218,
+      "sha256": "136054eab9991c08c223cc7556c341ae8df2eef3d3849647fefa21f2e064780e",
+      "git_blob_sha1": "7d4316dd5ec6aa995d3de8139224e981f63f094b",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/cmake/dpa-chain.exports",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/cmake/ppu_compiler.cmake",
+      "bytes": 657,
+      "sha256": "f81da4ba38434656fdff120496025c1cef43fd8bd5a26cb245db04f027e35ff7",
+      "git_blob_sha1": "391be1351ddb58aee06ffcb1aff5773d44f2522c",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/cmake/ppu_compiler.cmake",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/deepmd-op/overlays/api_cc/include/DeepPot.h",
+      "bytes": 54280,
+      "sha256": "9b371cd0b150a5b112fb6b65abe6fe93c00d6d7d6865377b32c2b5a3a03dcce9",
+      "git_blob_sha1": "00a73d6667fa4990e97d2ffb9962dcfdf9439f18",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/deepmd-op/overlays/api_cc/include/DeepPot.h",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/deepmd-op/overlays/api_cc/include/DeepPotPTExpt.h",
+      "bytes": 35019,
+      "sha256": "f0d1d23b096ae412c2c81e3d1b495c0cf7d7658d1d59b3dd7534608436eeb102",
+      "git_blob_sha1": "74aaafb384729f4452f3a4194a02acd33f636649",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/deepmd-op/overlays/api_cc/include/DeepPotPTExpt.h",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/deepmd-op/overlays/api_cc/src/DeepPotPTExpt.cc",
+      "bytes": 138785,
+      "sha256": "4287175e40f9c262444435b420e8fe13a5920e8766982467695e9c6d13cd54ba",
+      "git_blob_sha1": "46ddbfa2b6ad5f6b88ddbde668b2d6cfa4d7029b",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/deepmd-op/overlays/api_cc/src/DeepPotPTExpt.cc",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/deepmd-op/overlays/lmp/compact_canonical_graph_kokkos.h",
+      "bytes": 26873,
+      "sha256": "d5c1f26a671efa25e774cd73064e7adcedda8af335268988ea6d138b50b0d4c2",
+      "git_blob_sha1": "aa85607690b0c5308677e9573045e3fbf53198b6",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/deepmd-op/overlays/lmp/compact_canonical_graph_kokkos.h",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/deepmd-op/overlays/lmp/pair_deepmd_kokkos.cpp",
+      "bytes": 28380,
+      "sha256": "5bb4f44ac124ccb4ba62ee9fca39be847fbf2c78135d337dd9da20a5451deadb",
+      "git_blob_sha1": "bf587b0fca71d1fc54af7f63c1561667ddaecb6d",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/deepmd-op/overlays/lmp/pair_deepmd_kokkos.cpp",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa4c/compact_pf.cuh",
+      "bytes": 4980,
+      "sha256": "2363848d85e20006f84231cebb16d11424010baac075afbc58beb24c5b5eec07",
+      "git_blob_sha1": "70dbd1110842ff6bd3c7f80a62569d48f913ca7d",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa4c/compact_pf.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa4c/direct_force_onesided.cuh",
+      "bytes": 2098,
+      "sha256": "342594abd31b3f1885982323b3958f108470d854ef6891211103742195321bd3",
+      "git_blob_sha1": "2309c5eea8bacb88c3d49f47029c34d22b3f0924",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa4c/direct_force_onesided.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa4c/direct_kernel.cuh",
+      "bytes": 5098,
+      "sha256": "298c9016b79b15d02e3f51282167abc4ffc7c157499db9c69c55d1bed70eb32a",
+      "git_blob_sha1": "57fa32710f147a81ff31c30387f9f8d8cd228fe4",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa4c/direct_kernel.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa4c/direct_neighbor_view.h",
+      "bytes": 568,
+      "sha256": "925fa8559d6d79768d3d6920a141ffe85daddfb289295fd91fcc5d90a7fbc796",
+      "git_blob_sha1": "92b5c7d66a14b10e7b91ee18ee3f48050ce15cef",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa4c/direct_neighbor_view.h",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa4c/exact_cut.cuh",
+      "bytes": 1360,
+      "sha256": "4f2a56eb14ad86a2de20ba6e9db77aac1efdd8a26ee7a06dad0545361d2c0203",
+      "git_blob_sha1": "67cc0a0a73a6202aed54dd48234949ff305219af",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa4c/exact_cut.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa4c/graph_compress.cu",
+      "bytes": 93875,
+      "sha256": "996fe1d8d1a807de4adfa05f9ed25d948329b68bb0aeff051b2e07e890bcef2c",
+      "git_blob_sha1": "b6a07b6bfe949d432bb226c485989da11976fefb",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa4c/graph_compress.cu",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa4c/graph_compress_c8.cu",
+      "bytes": 206,
+      "sha256": "714130f43703190b00c36cb3fed1c10ad59ea4d94626ecb569a6adf5593b4f6a",
+      "git_blob_sha1": "f2862868604f051f6b21deae161afcec96fdedbd",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa4c/graph_compress_c8.cu",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa4c/graph_compress_kernel.cuh",
+      "bytes": 90216,
+      "sha256": "3f5ed2ec2ec7f89b070b392f151aa124ff0e200a992d95eb29eaa4c72e9e2fc8",
+      "git_blob_sha1": "ff744f3e3c294380c17ccff3176a7ed283579b0c",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa4c/graph_compress_kernel.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa4c/prepared_geometry.cuh",
+      "bytes": 1396,
+      "sha256": "99b7df3fdc2190770260875f355fbb0a328d03281217d582949000cb56c6df19",
+      "git_blob_sha1": "f5760f1a4df62167cf33eaa43ff8c69b2b1e7638",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa4c/prepared_geometry.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa4c/raw_force_fused.cuh",
+      "bytes": 14111,
+      "sha256": "41f1e139ce430c6369310205ed8af4dfa39496ccb9c53ac4acc1826fbfb3e4ed",
+      "git_blob_sha1": "058fa2da8e657d2920ba9fe78976a0f79d23d252",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa4c/raw_force_fused.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa4c/raw_force_onesided.cuh",
+      "bytes": 4173,
+      "sha256": "e6e1759e849f7dbdb9045f2c958119b76cc5b93924fd03c271232c872af6bf53",
+      "git_blob_sha1": "42aeb575109a1d60bd36d2c6bed41aaf26a06574",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa4c/raw_force_onesided.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa4c/raw_force_split.cuh",
+      "bytes": 8102,
+      "sha256": "82c1bc36145c89c6a1f3357b66c8e4c55206e422b4307762867ff948426e3397",
+      "git_blob_sha1": "7b8c6c73334b413c1b09e3e08a56222799a51478",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa4c/raw_force_split.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa4c/raw_geometry.cuh",
+      "bytes": 4206,
+      "sha256": "22b3936c20102a9d02a90f2681831f924a9e25ae3b11d5c9ab2c680a5bc52573",
+      "git_blob_sha1": "b411619244aa602cebbe1d59b21097ecaf5d7581",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa4c/raw_geometry.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa4c/raw_half_force.cuh",
+      "bytes": 2446,
+      "sha256": "4c5c975ae88cd3f8b9907b828d1fe44392072570cc093383c560cabd29df1743",
+      "git_blob_sha1": "97cd9f8c6458525386aee818164bc3dbd06fee0f",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa4c/raw_half_force.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa4c/raw_half_force_link.cuh",
+      "bytes": 4400,
+      "sha256": "ef78e2b4ed0b91094cda6e5618ea3a2b7de4d9d57057cfb84bbf79c43675e583",
+      "git_blob_sha1": "545922da4a6581a35a9d8dda5293c4deab68e0a9",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa4c/raw_half_force_link.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa4c/raw_kernel.cuh",
+      "bytes": 34709,
+      "sha256": "74a8d450e15227e43a35ea88d6313635f9892c8ce4853d000b17c4dfb8179d24",
+      "git_blob_sha1": "94fc652a95d4bbee06eafc5be08481db35e62d2d",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa4c/raw_kernel.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa4c/streamed_vjp.cuh",
+      "bytes": 2280,
+      "sha256": "4226167c173b100d49732be2cb7b32fd75d949a04c80be06c142a0b7695b178c",
+      "git_blob_sha1": "f64c1f3d5636f82f823aac4d590846fdf2370adc",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa4c/streamed_vjp.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa_l2_persist.h",
+      "bytes": 2120,
+      "sha256": "d2ed23300dcc430b7d1425d2fa3a38c6930a448469e083de8f4140d503661acb",
+      "git_blob_sha1": "16209c5cfb155b051ab7f942eff4fcfa48288d13",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/dpa_l2_persist.h",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/edge_force_virial.cu",
+      "bytes": 30280,
+      "sha256": "f7c2366c08cb8f64a43171258f0bebf73424da11c7b664f28cd868088779c671",
+      "git_blob_sha1": "33a523d1476cb5bd6b4ed2ea750035f03c7450de",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/edge_force_virial.cu",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/graph_fitting.cu",
+      "bytes": 40232,
+      "sha256": "bfa16ceddd253e553b91a598c25cb8efcd7aa5e0f6036149aa9d78b6ce243106",
+      "git_blob_sha1": "12ac1af4b015bd52e9c16e196ab209aeb078183a",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/graph_fitting.cu",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/k3n_fitting.cuh",
+      "bytes": 25257,
+      "sha256": "eb19092674b578934a6c4138edfa1eaa34a468b7bfda3c34b78b62eb2e7b52eb",
+      "git_blob_sha1": "670b0d840f72ddb12821d92d6d84927ec50366ce",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/k3n_fitting.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/tiled_fitting.cuh",
+      "bytes": 6492,
+      "sha256": "3385125eaa655fc0868b6c0967d91ecb49de49c3df231575f363f0c5a11e50a4",
+      "git_blob_sha1": "5c951d1fc5820b6891c91b2e716a381e4f8a2c56",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/deepmd-op/overlays/op/pt/tiled_fitting.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/compact_canonical_graph_kokkos.h",
+      "bytes": 40373,
+      "sha256": "039b48a64f995a1de74ca3e1cf0b1889570281dd9dd87d251ea72e36a333cb3c",
+      "git_blob_sha1": "9a2f1887b28b69f25bee91b8ca3ccf4b72664047",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/compact_canonical_graph_kokkos.h",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/compute_deepmd_fparam_dedn.cpp",
+      "bytes": 6382,
+      "sha256": "df5cd9c20c10841c721b7aeb72fba76560208cd79e677a75566b99f43dc9e8fa",
+      "git_blob_sha1": "88ee8825b8f0ab686e0c6ca6849ff892d60faa70",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/compute_deepmd_fparam_dedn.cpp",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/compute_deepmd_fparam_dedn.h",
+      "bytes": 783,
+      "sha256": "561ac5e58415b2c5be022364c2e8f4d897b7aeb96bc10a8fa4738771f0c04e91",
+      "git_blob_sha1": "66f4808031ce651040829bd71799963088a14488",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/compute_deepmd_fparam_dedn.h",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/compute_deeptensor_atom.cpp",
+      "bytes": 5452,
+      "sha256": "8a7947918c991fe5c3a932fa31f377bcc9030aaab906c4e854f160415375e9b8",
+      "git_blob_sha1": "f38279d9362535999a8988656528380069e9a1cf",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/compute_deeptensor_atom.cpp",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/compute_deeptensor_atom.h",
+      "bytes": 1098,
+      "sha256": "3335e18b139dbfab68cce2819fbfa97ffa59542325296f948837437b9104e921",
+      "git_blob_sha1": "aeba8c11f4655869c576c0498e1414af44cd63a1",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/compute_deeptensor_atom.h",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/deepmdplugin.cpp",
+      "bytes": 4532,
+      "sha256": "efd8fe528a463a2845e4ed6fc0d24f766f198942f7e174f28e8c4d4f3d809d46",
+      "git_blob_sha1": "058b53387df85295c4a17a2939033a683113fc0a",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/deepmdplugin.cpp",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/direct_neighbor_view.h",
+      "bytes": 568,
+      "sha256": "925fa8559d6d79768d3d6920a141ffe85daddfb289295fd91fcc5d90a7fbc796",
+      "git_blob_sha1": "92b5c7d66a14b10e7b91ee18ee3f48050ce15cef",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/direct_neighbor_view.h",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/fix_dplr.cpp",
+      "bytes": 26253,
+      "sha256": "b7d67f0a5ce6b7e342dd080d97835af056cb8ff9197289c8805bd289c5e09831",
+      "git_blob_sha1": "2eeafb255abac27ae94ae695db521b163b15e3cf",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/fix_dplr.cpp",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/fix_dplr.h",
+      "bytes": 2403,
+      "sha256": "e43879d492711d8f0a4312ce969caddf89bb82b14fde9769853f09e80297740f",
+      "git_blob_sha1": "cd2c54f9d9816f0e3327c9dca04808c45c6b835a",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/fix_dplr.h",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/fix_ttm_dp.h",
+      "bytes": 397,
+      "sha256": "f06a59d665378681b935065498c6d6dd741152732ddced42c81a92dd87f48fc8",
+      "git_blob_sha1": "3eb4ccd533b5a841f253f5642a3acdda65a32196",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/fix_ttm_dp.h",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/pair_base.cpp",
+      "bytes": 19128,
+      "sha256": "099592ed909edc4a79e81ea5577c56f4fa3a97d2e850bf63528f0c721016a187",
+      "git_blob_sha1": "0bfd04781cbe305effe04df34bc88f4f86540147",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/pair_base.cpp",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/pair_base.h",
+      "bytes": 4467,
+      "sha256": "4e4aa82ec10ad74e198a4578f742ba73e95582b415259184ae262d7274edbb92",
+      "git_blob_sha1": "72710ff91915375f8cfd85e2e9ad78c58cc8fab1",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/pair_base.h",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/pair_deepmd.cpp",
+      "bytes": 39900,
+      "sha256": "6dc255b14acb2ddb0682e86324ff96704441e31e60c3f0bc203c36b8bddf3988",
+      "git_blob_sha1": "a03482a90a55c04089dbbc7529544c5c51cacdc1",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/pair_deepmd.cpp",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/pair_deepmd.h",
+      "bytes": 1611,
+      "sha256": "0a37bceddc3f9e8537b49a5f8fd76dd3336e0ef3ae4550ee684db0867de50db1",
+      "git_blob_sha1": "c7c40d9b18268d3f06e846abc5ae3801c4bcd6a2",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/pair_deepmd.h",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/pair_deepmd_kokkos.cpp",
+      "bytes": 42953,
+      "sha256": "49aaf6473fd412822964de54af56127a5a069b816465ad24750e6d2edc264173",
+      "git_blob_sha1": "43511f866aca300080306e5a9f10cdb066b9d084",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/pair_deepmd_kokkos.cpp",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/pair_deepmd_kokkos.h",
+      "bytes": 5740,
+      "sha256": "ccc03f0dd17b17a30415cc6b2d5ac99c3a6d581d4c6640da99c634e07d7881a0",
+      "git_blob_sha1": "56b9568e55e738c93b5ebdb66825d4135d3679a1",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/pair_deepmd_kokkos.h",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/pair_deepspin.cpp",
+      "bytes": 36758,
+      "sha256": "b420f59be5303146594c14121b0202dc06f5d20bc1a14f521de539b65d79806b",
+      "git_blob_sha1": "d5e3f04efbed457e937e5789ee843e5cd60ded7f",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/pair_deepspin.cpp",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/pair_deepspin.h",
+      "bytes": 1338,
+      "sha256": "7c4954fecb6ae2d69cfd99b053110e822d0ad578ad17c39431318fa9010d2e77",
+      "git_blob_sha1": "cc31db8bf5c7ea9fc9e74221910125da597a9ac2",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/pair_deepspin.h",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/pair_dpa4spin.cpp",
+      "bytes": 21866,
+      "sha256": "a99133d83648b1d0668464a9a005a37015ab4617396d2909cf204e737adc2d30",
+      "git_blob_sha1": "0a8d6e1ba8d8c03dca8b19b70bd2954307f0aafb",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/pair_dpa4spin.cpp",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/pair_dpa4spin.h",
+      "bytes": 3635,
+      "sha256": "f5df8c7d4e13fc42dbece5c4f47b8edda1cce6466fde79aba0f0210becc990a8",
+      "git_blob_sha1": "7d0aba89779b1e305def4976eac3f13cc6289672",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/pair_dpa4spin.h",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/pair_dpa4spin_kokkos.cpp",
+      "bytes": 18324,
+      "sha256": "7165f4465c59bebff10ef8af2cfb82739fe21f6e6fea93093b078041711cf103",
+      "git_blob_sha1": "f479b27559ce528d71c6e79318ba266ced486890",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/pair_dpa4spin_kokkos.cpp",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/pair_dpa4spin_kokkos.h",
+      "bytes": 5084,
+      "sha256": "99158ac2eeee3c55329e396f05f3f2e89da83926503294271c759db14ebe693c",
+      "git_blob_sha1": "1485e6e3363805194c2f7e3ba06852e0ce0b1619",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/pair_dpa4spin_kokkos.h",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/pppm_dplr.cpp",
+      "bytes": 12618,
+      "sha256": "5a2d1b8627256ac9465f227ace7d1b1e58c0cdc8ed9d972a3cd32984fa721887",
+      "git_blob_sha1": "2d61c6c6baa6afe67a4b6d5ffad54a676e4eb1bb",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/pppm_dplr.cpp",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/pppm_dplr.h",
+      "bytes": 872,
+      "sha256": "d5bf7597d757cc8bcb6aaa5d46b3721b5edc3abf0ca8647a0d4fdb5267c13236",
+      "git_blob_sha1": "a7410903b74e664694fb8244b4741b0b3fa96b36",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/pppm_dplr.h",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/small_epoch_abi.h",
+      "bytes": 1326,
+      "sha256": "55f2a097534b84c42af764909322055951452b614091c8a85a9bd393e28741e4",
+      "git_blob_sha1": "1e95f80a592a73e3011c7947696d062340d4eb84",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-deepmd-plugin/src/small_epoch_abi.h",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-python/.gitattributes",
+      "bytes": 135,
+      "sha256": "fc76121f760e729257e6339adaaa707eb4f85add8b5a95778d027db1b118bb5a",
+      "git_blob_sha1": "1f2e0848216974fa7ca8147ebd00362b5a166064",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-python/.gitattributes",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-python/package-manifest.json",
+      "bytes": 1687,
+      "sha256": "fe2df35b7f35ede89a96651d9988006117bcaea649ddf1c0547133c51b203c59",
+      "git_blob_sha1": "4554cd86a15056736edb134024f654ecbb21068a",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-python/package-manifest.json",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-python/package/lammps/__init__.py",
+      "bytes": 1726,
+      "sha256": "1532aa3fbaf7a0894c27ac4deca1dd3e20e52467cf6b88e1b2f7a9ad5d181dfe",
+      "git_blob_sha1": "b42b0d37b5215d2050f6686e5ea741670bd2b885",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-python/package/lammps/__init__.py",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-python/package/lammps/constants.py",
+      "bytes": 2050,
+      "sha256": "b0cdb723150da63b6fae01368f683f6e5ea9cebb97cab2b117fe93b57ef56088",
+      "git_blob_sha1": "718f8a3f0d10b02f1c6863852a7e986a86c7c7a8",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-python/package/lammps/constants.py",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-python/package/lammps/core.py",
+      "bytes": 110825,
+      "sha256": "549765264e9dddf6185470430305a7134cc3be746d0226ce7baf69c95e812f68",
+      "git_blob_sha1": "d61780e835bb719fa177dfc2e9a1d155ca77e441",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-python/package/lammps/core.py",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-python/package/lammps/data.py",
+      "bytes": 2932,
+      "sha256": "4a49b2a0d1578f57392e0263b2f6c38120f4caeda3522c09c1c116347237ca6d",
+      "git_blob_sha1": "7747231bd8ae23f7b7e5b9fe2ef6b3d1c7c99914",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-python/package/lammps/data.py",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-python/package/lammps/formats.py",
+      "bytes": 7734,
+      "sha256": "ff2e303dcf25442e93536a16b19a5f1962d2bbbbe13b7c98daa20099cdd21e7e",
+      "git_blob_sha1": "8b3d3f5430e4ce1b257915b4a187b0728e705dd3",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-python/package/lammps/formats.py",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-python/package/lammps/ipython/__init__.py",
+      "bytes": 1045,
+      "sha256": "5da207acb898135db627b78465277b107172f0c87be452f704454de7e085ab54",
+      "git_blob_sha1": "c07a5ff5e549757d365028730194352bcb49348f",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-python/package/lammps/ipython/__init__.py",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-python/package/lammps/ipython/magics.py",
+      "bytes": 2657,
+      "sha256": "703c7538a64e1384dea9e5312fd84d8347d07a5bd3868cf6c74f0cacb37c7143",
+      "git_blob_sha1": "5ad2ae2d6f91d004c7bc2f8b238c546cdcc41d86",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-python/package/lammps/ipython/magics.py",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-python/package/lammps/ipython/wrapper.py",
+      "bytes": 4019,
+      "sha256": "60048b9e1198403688b51f6bf74cfa8adfce4ce6759fac4e18f1f6c28968b245",
+      "git_blob_sha1": "6f6669f55ad6efc47ac986383987441a8c8bc475",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-python/package/lammps/ipython/wrapper.py",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-python/package/lammps/mliap/__init__.py",
+      "bytes": 1424,
+      "sha256": "ffbc154c73eee1fddb9500b5034607fd2ed7dc153792de295b77412b235e4063",
+      "git_blob_sha1": "dc9e2853e65242aedd7da411bea0555162cc5a66",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-python/package/lammps/mliap/__init__.py",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-python/package/lammps/mliap/loader.py",
+      "bytes": 5071,
+      "sha256": "3e7324196d3e4173d4bfe9a89415edc7ce0f9093559cc6fd12cf6394aa5069cf",
+      "git_blob_sha1": "558c69a7a9cd41018ee69b16acd2325299499e4f",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-python/package/lammps/mliap/loader.py",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-python/package/lammps/mliap/mliap_unified_abc.py",
+      "bytes": 819,
+      "sha256": "cfc4ae563ee38cf4661246d00ddd2c9447223780b10633cf1b9910560ae6f89f",
+      "git_blob_sha1": "aca640a836f7157ce6d950c3307aea01cd72d467",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-python/package/lammps/mliap/mliap_unified_abc.py",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-python/package/lammps/mliap/mliap_unified_lj.py",
+      "bytes": 1286,
+      "sha256": "f695cdfc6387ea827ae03b3923dbe3c5eab1d7037fa4a53aca9eb60de9827299",
+      "git_blob_sha1": "077b00d7b92e3d70c75c6ab9e7ebe2d81ea4be30",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-python/package/lammps/mliap/mliap_unified_lj.py",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-python/package/lammps/mliap/pytorch.py",
+      "bytes": 10128,
+      "sha256": "d2d49742514af23ada3230335784ea5286366c1bcae90018949da26b89925c91",
+      "git_blob_sha1": "71ce83d6407533b2076a043da278edfad0a29855",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-python/package/lammps/mliap/pytorch.py",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-python/package/lammps/numpy_wrapper.py",
+      "bytes": 20651,
+      "sha256": "989694195c1f4d831b1c9d2490ceb1670caa7f7e1c88c4c3565965d3ffc483a5",
+      "git_blob_sha1": "6bdde3bac674ac4d263ef8fd301ca6e7dcbab52e",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-python/package/lammps/numpy_wrapper.py",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps-python/package/lammps/pylammps.py",
+      "bytes": 31867,
+      "sha256": "ca27fae28e78d92b577999aa04155be18f06a35f5519da6cf7b1dbfed060d551",
+      "git_blob_sha1": "21faa2c4654ca7666858d440a354160bc514bdbf",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps-python/package/lammps/pylammps.py",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps/overlays/lib/kokkos/core/src/Cuda/Kokkos_Cuda_abort.hpp",
+      "bytes": 1414,
+      "sha256": "ae80bf54473d5cb10a760c33f309ad2fb6926908f8f5f5101b8223f4e16c0d0d",
+      "git_blob_sha1": "49f29d179803a8e5164a0b2dad276b8195b8f606",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps/overlays/lib/kokkos/core/src/Cuda/Kokkos_Cuda_abort.hpp",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps/overlays/src/KOKKOS/comm_kokkos.cpp",
+      "bytes": 59842,
+      "sha256": "8db0ca989bdd6c39f6e1552deed08bbd702c7f4dbb885a96160f3829452cdb98",
+      "git_blob_sha1": "2197439b154fd62f1a26411e5071256901f161a8",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps/overlays/src/KOKKOS/comm_kokkos.cpp",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps/overlays/src/KOKKOS/comm_kokkos.h",
+      "bytes": 4656,
+      "sha256": "213a1a59028a16b9f914b7e85d000b7caf89f9084704fc2fb7fa3fde448e19b9",
+      "git_blob_sha1": "c868a9c611591a529070dced16ca54eff4fca9a0",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps/overlays/src/KOKKOS/comm_kokkos.h",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps/overlays/src/KOKKOS/compute_temp_kokkos.cpp",
+      "bytes": 5266,
+      "sha256": "8cbce17719baea4dac3be77321e4dd0ddc382aebb4bab1335236d404aa2798ad",
+      "git_blob_sha1": "2dcc3ecb4d03d63b2903c2a9ae9641a95f55639f",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps/overlays/src/KOKKOS/compute_temp_kokkos.cpp",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps/overlays/src/KOKKOS/compute_temp_kokkos.h",
+      "bytes": 2498,
+      "sha256": "8e97bd9b1a11a31facc1ae0357120f5d288ed02e0cfc0557eb828706e543db6a",
+      "git_blob_sha1": "5e8f23a7402302d1f644ba72eb79ac98998ac4ed",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps/overlays/src/KOKKOS/compute_temp_kokkos.h",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps/overlays/src/KOKKOS/dpa_fast_step_kokkos.h",
+      "bytes": 15971,
+      "sha256": "434afd522b9c57e42f72f0c284fe9788551a942a3ef17d59f3906c9087e5ac37",
+      "git_blob_sha1": "0e9a39105ae8d0daa10f63dcc9b526aedb231585",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps/overlays/src/KOKKOS/dpa_fast_step_kokkos.h",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps/overlays/src/KOKKOS/fix_nh_kokkos.cpp",
+      "bytes": 49350,
+      "sha256": "8d508348f6de2b38b2cb8f8f89ab987e3b9ac03b5a3172ad93e618258d85b133",
+      "git_blob_sha1": "753b96f8647d3c370b9ec4257f5d43a1535562d6",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps/overlays/src/KOKKOS/fix_nh_kokkos.cpp",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps/overlays/src/KOKKOS/fix_nh_kokkos.h",
+      "bytes": 3377,
+      "sha256": "a16f893dfa7f27a5280b3b63f62b22db9344ef55f76c604bad5238b9b0a6cb7f",
+      "git_blob_sha1": "a1250eb3cb2b638aff5c223a317fd2646ff104d4",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps/overlays/src/KOKKOS/fix_nh_kokkos.h",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps/overlays/src/KOKKOS/neighbor_kokkos.cpp",
+      "bytes": 19117,
+      "sha256": "e7f6d4a9cd75745fb29170cfb02aeac42e6dd4c10891598951cf3dffc50d5538",
+      "git_blob_sha1": "a07032e0930124da9cb578f13a5c2bd1a57db403",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps/overlays/src/KOKKOS/neighbor_kokkos.cpp",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps/overlays/src/KOKKOS/neighbor_kokkos.h",
+      "bytes": 3440,
+      "sha256": "90bb05a469b068175904d405297bfa3525c24dd9de5c535ca568bf86b93a14d6",
+      "git_blob_sha1": "e74457eea6ac1b1864292679d306f1efa19d9947",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps/overlays/src/KOKKOS/neighbor_kokkos.h",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps/overlays/src/KOKKOS/npair_kokkos.cpp",
+      "bytes": 60392,
+      "sha256": "e18c79688ec380b38d04c620725499f6d8321b0de2264cfa983cf2e0c6559053",
+      "git_blob_sha1": "7611e14272acab2b6f60b27504f1b70a3fa6bf2d",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps/overlays/src/KOKKOS/npair_kokkos.cpp",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps/overlays/src/KOKKOS/verlet_kokkos.cpp",
+      "bytes": 23873,
+      "sha256": "4c2442f63e67dfa4aba87e8d29b029e8fb2e271e15b1124a78d28f871954368f",
+      "git_blob_sha1": "ebc18aab274347c5abd4aad5b833d5deb7b7f937",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps/overlays/src/KOKKOS/verlet_kokkos.cpp",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps/overlays/src/neighbor.cpp",
+      "bytes": 100860,
+      "sha256": "9331cae2bccf0c766a37dace1f6fce4918111b864e4f863dde0508a8a2b9f3ce",
+      "git_blob_sha1": "d2e03113773a80cd06ace9b2bdee7c3c0d841536",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps/overlays/src/neighbor.cpp",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps/overlays/src/thermo.h",
+      "bytes": 8920,
+      "sha256": "bf6548b460f23f8bf8662ca76c52aa7fca41b567d2f00f562a6331d10ad88619",
+      "git_blob_sha1": "9959f28751f435753da84e64a15b5229e8ac5353",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps/overlays/src/thermo.h",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/lammps/overlays/src/write_restart.cpp",
+      "bytes": 22343,
+      "sha256": "d1294c9c53b5f7595851abe8212f4e7317e7ce874f532393bbd727fb8f384b1a",
+      "git_blob_sha1": "8bbb2dcb21dd1a65b40ae22dc0d7db5976057e57",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/lammps/overlays/src/write_restart.cpp",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/runtime-plugins/npt/README.md",
+      "bytes": 601,
+      "sha256": "23f4a2f4ca2f2af14899282347d3fe00c8beac8c6104af83571adb90173e9878",
+      "git_blob_sha1": "066931a7ef4e807c70cef11fde51a97e6324f2d2",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/runtime-plugins/npt/README.md",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/runtime-plugins/npt/npt_coroutine.cpp",
+      "bytes": 27378,
+      "sha256": "52e4803a71fa1d81ba171b915d962837aa4175f571a68e224e64e5b43aa59d4e",
+      "git_blob_sha1": "0bc82821a3cbef70fb51847c94fce498b533d6cb",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/runtime-plugins/npt/npt_coroutine.cpp",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/runtime-plugins/npt/npt_cross_step.cpp",
+      "bytes": 9386,
+      "sha256": "992ca5c6afd3a03abe37734c0978181a572a96d02d9adf53825c6fc3345d3653",
+      "git_blob_sha1": "a237a826cb2b1b2b5b51d237ae84794ffa45c6c3",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/runtime-plugins/npt/npt_cross_step.cpp",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/runtime-plugins/npt/small_epoch_abi.h",
+      "bytes": 1326,
+      "sha256": "55f2a097534b84c42af764909322055951452b614091c8a85a9bd393e28741e4",
+      "git_blob_sha1": "1e95f80a592a73e3011c7947696d062340d4eb84",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/runtime-plugins/npt/small_epoch_abi.h",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/runtime-plugins/nvt/fix_nvt_fused_kokkos.cpp",
+      "bytes": 48020,
+      "sha256": "f54299c86de48a2e3d94c1344ed587eb244b72a22bf62e409d757161184467a0",
+      "git_blob_sha1": "78512643efdfc920b19dd94031051c06f93672c0",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/runtime-plugins/nvt/fix_nvt_fused_kokkos.cpp",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/runtime-plugins/nvt/fix_nvt_fused_kokkos.h",
+      "bytes": 1171,
+      "sha256": "7ce03e48a0e1e7d29e4675d0e45f752d580d88e8beb1947a7a616b786910a81a",
+      "git_blob_sha1": "b05f1e811ecf9dbb77ef6cb85f225a4aadf71764",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/runtime-plugins/nvt/fix_nvt_fused_kokkos.h",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/runtime-plugins/nvt/nvt_plugin.cpp",
+      "bytes": 789,
+      "sha256": "1bd3204b36ac86c0340476c4cb72c91b8bf08c4876b4b30f3afd8c6880e1f11d",
+      "git_blob_sha1": "39b5fa4e6db26d85b0d8d78ca63b97b13fc0359c",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/runtime-plugins/nvt/nvt_plugin.cpp",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/components/runtime-plugins/state/native_state.cu",
+      "bytes": 49445,
+      "sha256": "98cb393223c1503177ae0e64951164798a29009806030db87593884f0b8463ec",
+      "git_blob_sha1": "f83684e274cdeb9739c1d712706d4113d6a691c7",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/components/runtime-plugins/state/native_state.cu",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/config/engine.production.json.in",
+      "bytes": 1024,
+      "sha256": "aafc41fbc8eb58d0e3cfeb06199c682814a58f157d0f10a79e977ebbeec7e736",
+      "git_blob_sha1": "5a7cea5496bd53beaee83207fd6877267ffe6880",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/config/engine.production.json.in",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/config/runtime-defaults.json",
+      "bytes": 5500,
+      "sha256": "6d624b2163f91e31517b829a3a757acffd3bdf90c5d0f0f17ce4f4dbbac820fd",
+      "git_blob_sha1": "b7ce00c5e212cffdb72a0630b88c858e9f4e4295",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/config/runtime-defaults.json",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/docs/ARCHITECTURE.md",
+      "bytes": 4025,
+      "sha256": "5a3fb6d559d491f005618be8da4845e590391fd2b876c1b223ae5c004e17798d",
+      "git_blob_sha1": "b3f330ff31822edd1d05d5bfa2512b02623fa447",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/docs/ARCHITECTURE.md",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/docs/BUILDING.md",
+      "bytes": 7627,
+      "sha256": "6469c50692840a27cc769249e309f022e845d4291ad61a0b36777e4ea6dc1933",
+      "git_blob_sha1": "6d62a07adf279cb82c19f8f3ebb90d0e6d4b5610",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/docs/BUILDING.md",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/docs/RUNTIME.md",
+      "bytes": 12244,
+      "sha256": "75bd100e8a331c750f0a3d6f8ea2a0aa313f17a9f17ea9ea80860a8a34875ff7",
+      "git_blob_sha1": "469db6a770b7d6c3cfc59a40f296bf76fdd023df",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/docs/RUNTIME.md",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/docs/VALIDATION.md",
+      "bytes": 6162,
+      "sha256": "57b80f4828fcf139a749280fe1006c3f0589e6110b141f1920800a3a13bea06f",
+      "git_blob_sha1": "304b0056196c4ad654ddc9349824ce56f545e936",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/docs/VALIDATION.md",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/include/dpa_chain/direct_neighbor_view.h",
+      "bytes": 568,
+      "sha256": "925fa8559d6d79768d3d6920a141ffe85daddfb289295fd91fcc5d90a7fbc796",
+      "git_blob_sha1": "92b5c7d66a14b10e7b91ee18ee3f48050ce15cef",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/include/dpa_chain/direct_neighbor_view.h",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/include/dpa_chain/exact_cut.cuh",
+      "bytes": 901,
+      "sha256": "aa4991b07c4eb6f0fe88ba495904b209bf15638b49045f20d1976f201d66fa50",
+      "git_blob_sha1": "b433a431e094f68ac229bd987ef6a180f0e0a9cc",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/include/dpa_chain/exact_cut.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/include/dpa_chain/fit_node_bridge.h",
+      "bytes": 1311,
+      "sha256": "6c42c58bd8c83b8eb8508a4f5dc2b48dc22c3625003389321fd684216dc3adf2",
+      "git_blob_sha1": "62f2f94486eac78ce55c338a8019d48b5dd76734",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/include/dpa_chain/fit_node_bridge.h",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/include/dpa_chain/graph_compress.cuh",
+      "bytes": 28389,
+      "sha256": "82fb63bda6c46f31e5acc7d9f35dfa9a553ad0dc3836ecc825a541a161ca962c",
+      "git_blob_sha1": "5ad8550238ff2cf6bb045f65b08c03188d822a63",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/include/dpa_chain/graph_compress.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/include/dpa_chain/graph_compress_launch.h",
+      "bytes": 17875,
+      "sha256": "3ae52e6621936ce9b01ca641ee2a43cb8fada60e27fb687fe33a31aa7cd5ec50",
+      "git_blob_sha1": "373fbd3413432f3b8184e32902345dbc2e590cb9",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/include/dpa_chain/graph_compress_launch.h",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/include/dpa_chain/operator_fallback.h",
+      "bytes": 296,
+      "sha256": "2b5891c8c4e1605bbc84f491422414d0b196adb7bd6c149d4e643cbb2a0f17b0",
+      "git_blob_sha1": "e22da3da4f31780b9f88d807b95dbb030459f1f9",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/include/dpa_chain/operator_fallback.h",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/include/dpa_chain/raw_force_onesided.cuh",
+      "bytes": 4173,
+      "sha256": "e6e1759e849f7dbdb9045f2c958119b76cc5b93924fd03c271232c872af6bf53",
+      "git_blob_sha1": "42aeb575109a1d60bd36d2c6bed41aaf26a06574",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/include/dpa_chain/raw_force_onesided.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/include/dpa_chain/raw_geometry.cuh",
+      "bytes": 4217,
+      "sha256": "7452e3799709c1c199d93381c6add3437d0ae3b14d5f188fe2a8cbadc5735d91",
+      "git_blob_sha1": "d3918afea3329d4db1303a3fb0551a0feb1a63c7",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/include/dpa_chain/raw_geometry.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/scripts/build_all.sh",
+      "bytes": 1088,
+      "sha256": "fe25d0aa3cd936f91743132cf2d3792fc8c896deee839996a9f5cd1a33489db5",
+      "git_blob_sha1": "1a3222d4aad487e40ec1c87f0d088989c3641980",
+      "mode": 509,
+      "original_path": "production/dpa4c-runtime/scripts/build_all.sh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/scripts/configure.sh",
+      "bytes": 165,
+      "sha256": "3b744d5438b2fdbf0400244e5a2fc5d79a6a3c1bf04d40713a045a78a50a0426",
+      "git_blob_sha1": "9581698d90887ea459a0d9ad1e9ad76c994316a2",
+      "mode": 509,
+      "original_path": "production/dpa4c-runtime/scripts/configure.sh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/scripts/package_runtime.sh",
+      "bytes": 154,
+      "sha256": "7159f74beb3e84e10506ef93b768e0fff4795e49b11443ebe114f7b8b0abe648",
+      "git_blob_sha1": "5665d61277ad2cb9800806e0a1561902c1ebdc50",
+      "mode": 509,
+      "original_path": "production/dpa4c-runtime/scripts/package_runtime.sh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/scripts/stage_runtime.sh",
+      "bytes": 161,
+      "sha256": "01767ae15021fe0ad67139ab9afd409b356c8aca3f8b1af382e123c8144534a8",
+      "git_blob_sha1": "c32fb5da52c7311e77fd7af0d1172f078874ecb7",
+      "mode": 509,
+      "original_path": "production/dpa4c-runtime/scripts/stage_runtime.sh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/scripts/verify_runtime.sh",
+      "bytes": 154,
+      "sha256": "22e6b56fed08c2ae27f080d9bff1ae28dcd905ae12d29d0b44e9f832a05f1985",
+      "git_blob_sha1": "d7c3245f4249742d1288a25ae1ba2b93757edcb0",
+      "mode": 509,
+      "original_path": "production/dpa4c-runtime/scripts/verify_runtime.sh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/entry/chain_entry.cu",
+      "bytes": 4119,
+      "sha256": "a06b4b8a1e2aad6c510e19e8649c534d717ae0591af715db1022d1bfb47dd78e",
+      "git_blob_sha1": "7f331fd6be5ab1b66690f4b6bc2d58a9b1b7108d",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/entry/chain_entry.cu",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/fit_node/fit_node_runtime.cu",
+      "bytes": 452,
+      "sha256": "45713647e2645d6fc7169c2716e55e8c2389e62728e9bf44b0ec78bd8fcbab65",
+      "git_blob_sha1": "768e295d6c515990f23458489698a04a11db5143",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/fit_node/fit_node_runtime.cu",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/fit_node/fused_kernel.cuh",
+      "bytes": 5396,
+      "sha256": "c24d79d25186be3f08a4ca31067816d4f3ac36f80bbf27c1eff9c92fb49de9c9",
+      "git_blob_sha1": "8e96fea3be80f39d0d5f1759f193ca7a165e9b71",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/fit_node/fused_kernel.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/fit_node/host_runtime.cuh",
+      "bytes": 14077,
+      "sha256": "43d8f218d56f44672cab55ab64c364043a402d26aa741f909a2bc0fb4356b511",
+      "git_blob_sha1": "138738c086aa9edaf266cab65269adfb87e28786",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/fit_node/host_runtime.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/fit_node/node_body.cuh",
+      "bytes": 68085,
+      "sha256": "d84e56ad4d1eaae4d8d6bcbc2596c0e92346b85e80d6b48903ee5deeb9a6504b",
+      "git_blob_sha1": "7b74915f68bae4684fe59402249e139d893cae52",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/fit_node/node_body.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/fitting/block_pipeline.cuh",
+      "bytes": 13818,
+      "sha256": "e6f2bdbc76616fbc39e17821584ee9db3076c898f6213410cf42830307ebe289",
+      "git_blob_sha1": "cb0a45b4e47569b509aa2edc31c469c1ea91cac4",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/fitting/block_pipeline.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/fitting/fitting_core.cuh",
+      "bytes": 33790,
+      "sha256": "9d3dcf133e03264006213cd154c8c814d6db0bcedf2a7f56f69cf9778264e00c",
+      "git_blob_sha1": "268f2dcd6c9420a7cec86ea191ab9ec2284b91f3",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/fitting/fitting_core.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/fitting/fitting_runtime.cu",
+      "bytes": 5883,
+      "sha256": "eb53727d47f34ec072610129d453fac5385a200f0bc5111217909d2580c26d79",
+      "git_blob_sha1": "f12e3f0bf269adcb33e10551fa0aca6374d1a3b4",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/fitting/fitting_runtime.cu",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/fitting/l2_persist.h",
+      "bytes": 2120,
+      "sha256": "d2ed23300dcc430b7d1425d2fa3a38c6930a448469e083de8f4140d503661acb",
+      "git_blob_sha1": "16209c5cfb155b051ab7f942eff4fcfa48288d13",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/fitting/l2_persist.h",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/fitting/lowreg_pipeline.cuh",
+      "bytes": 10927,
+      "sha256": "f2d3c2d97bbe7bf480f3daa70e74466f5b13e57979bb1b700f2c2b34244ee4d9",
+      "git_blob_sha1": "acacbb1e8b8f2daf98d583379ab8a8116d84e6ee",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/fitting/lowreg_pipeline.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/fitting/small_weight_resident.cuh",
+      "bytes": 2494,
+      "sha256": "3e938270fc60f95c56a2d5b3eb707f5d7f6fb81bb0db9b3f4f71596c08054560",
+      "git_blob_sha1": "1a5c2a890a1f406588e3e66cecbe7b4296d769b5",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/fitting/small_weight_resident.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/fitting/split_runtime.cuh",
+      "bytes": 12867,
+      "sha256": "b9543000bd31717eb54878aeeb8add0137e27ee41d5b3823ddc9a948aaf68424",
+      "git_blob_sha1": "894e2a1ea0ce9980e59c71a2f9be4ec25864834a",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/fitting/split_runtime.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/force/baseline/force_runtime.cu",
+      "bytes": 3076,
+      "sha256": "2da42840d33ba8e0d8368c19589914460edcfd3fa973eb2410679fe016795971",
+      "git_blob_sha1": "4295ebd9280b694b71b59aced9030d93777ff05d",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/force/baseline/force_runtime.cu",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/force/cartesian/algebra_force.cuh",
+      "bytes": 10183,
+      "sha256": "7afe9a50924365e4a0d63705e08535ba0e05f8620009824c4f6dcc7263c8de28",
+      "git_blob_sha1": "8e45e7c1786c5da67352558aeef7eb0463aa6443",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/force/cartesian/algebra_force.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/force/cartesian/force_runtime.cu",
+      "bytes": 3398,
+      "sha256": "27b625279ba89f78e9223304498d6b5e3b1088eb2e906290624b35e4bac96651",
+      "git_blob_sha1": "7fa407bc196d93638ddc52f91bc30d04f9ca6bbf",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/force/cartesian/force_runtime.cu",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/force/core/radial_math.cuh",
+      "bytes": 809,
+      "sha256": "98a32865991aa8a954a74fe88312c8ae081af34f751277828bf40b9b678d6e0e",
+      "git_blob_sha1": "9578a50ea3abbacca1816717287acc35ccbd5d97",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/force/core/radial_math.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/force/core/raw_force_split.cuh",
+      "bytes": 14810,
+      "sha256": "654bcbd82f99f4b04d45096101e132e8c2b4fad2a8cbfdecd78074f0a38e32ca",
+      "git_blob_sha1": "f9ede847b2b0ecff7c7e214dba82fe754406b1b2",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/force/core/raw_force_split.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/force/core/shared_table_refine.cuh",
+      "bytes": 5861,
+      "sha256": "3c72234ee7acc83c3b060b90f10481250c8079e96f6da544e9d14b08d98238b4",
+      "git_blob_sha1": "ee0d3b66ce18922f8cf177e2c56832479e693833",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/force/core/shared_table_refine.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/force/packed/algebra_force.cuh",
+      "bytes": 18471,
+      "sha256": "cbbc0258e3c499a3e554772822655eda0680dafc7cb6ee66ace9d494544d7bfe",
+      "git_blob_sha1": "c8a5b679f3f664703f3b9053f144fd678011e9e1",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/force/packed/algebra_force.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/force/packed/force_runtime.cu",
+      "bytes": 15850,
+      "sha256": "238686a44269655f15bb5875521ac3b51ec5fe643551de8854aeaac99f2659d0",
+      "git_blob_sha1": "32834bab61efc855124a4790a8bef49a72860a28",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/force/packed/force_runtime.cu",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/forward/fallback/forward_runtime.cu",
+      "bytes": 54251,
+      "sha256": "ae55d76a778026dc2d2d3fe4231f9a9f3553710d306d6bb619cacf02c2f7cd3e",
+      "git_blob_sha1": "20062f0b551a8ce4cb69aed7624bed7aff0ee8e7",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/forward/fallback/forward_runtime.cu",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/forward/fallback/readout_kernels.cuh",
+      "bytes": 42019,
+      "sha256": "d0aea872e71df7e35308d6488a8f40aa4a784998d5b98e55adc5f42c768aa09c",
+      "git_blob_sha1": "e9808f15c8801bef29d3eca46c7a2b2ae3ea4faa",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/forward/fallback/readout_kernels.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/forward/forward_runtime.cu",
+      "bytes": 86287,
+      "sha256": "d2f5e8417fad8f5abac07cc8c49a12ae482a1164b816feb7f15176cd85a22e49",
+      "git_blob_sha1": "497e73b3f9b1ebc2dd0c2a09806fde10beaa03a1",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/forward/forward_runtime.cu",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/forward/readout_kernels.cuh",
+      "bytes": 80764,
+      "sha256": "c8c40e1647826b4af490acc2fbd8f2587dc599607280b04a58d304c2026574c0",
+      "git_blob_sha1": "ce14dc8d2eb2ae76b3ea74c15f4d700faa27b8b6",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/forward/readout_kernels.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/integration/force_widen.cu",
+      "bytes": 5578,
+      "sha256": "30d28b370795b27787de1e1088e8126b18730ca7b19914594b0a0b0463005dec",
+      "git_blob_sha1": "ff89b1460b6df54bb0b46c52d036f0ca7b47ab5d",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/integration/force_widen.cu",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/integration/preclear.cuh",
+      "bytes": 761,
+      "sha256": "1404449087ab29409b715df7571e7bd19fd71a377509bdc2355c0da7887e32fe",
+      "git_blob_sha1": "cbc1f5a589284e69804b6dab0f6f0ef3a08aa9a9",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/integration/preclear.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/integration/preclear_api.h",
+      "bytes": 169,
+      "sha256": "21312530d7c0997ebc5dbb5f474921a36f8672d3c1df1ebbab17636ee3eeb8dc",
+      "git_blob_sha1": "5fbc2032432600bc291c929941c274263edfe468",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/integration/preclear_api.h",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/integration/raw_force_direct.cuh",
+      "bytes": 3590,
+      "sha256": "71b7817e6ef8d29e13cab4f8c759188f437d53aa544653e67ec9fd5fa436f498",
+      "git_blob_sha1": "71bacc37609db810f89e5d371228b9d4542c423c",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/integration/raw_force_direct.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/integration/reclaim_widen.cu",
+      "bytes": 12826,
+      "sha256": "702cd4b1f62b2aa5d9e9afefd4ed83a0d3613976073cb16f2bcf403ad434a6b8",
+      "git_blob_sha1": "e23d081a6cdba0a7d5264daaf10e84017af3d4de",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/integration/reclaim_widen.cu",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/integration/widen_dispatch.cu",
+      "bytes": 750,
+      "sha256": "0d7f5cde7375a887264bc2f61d26ca2e9dea30859153e0773f5f3f4c6481814c",
+      "git_blob_sha1": "bb0118a9b3ab40d1ed533bc36f57a863691d76c7",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/integration/widen_dispatch.cu",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/node/generated_large.cuh",
+      "bytes": 69780,
+      "sha256": "b299d69b5c50056a89a4f49acbc003c5f154586d2bd17f92d9d3dadb0d397cfd",
+      "git_blob_sha1": "eb7633203e87ab9740a83956fce81997f4de04a1",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/node/generated_large.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/node/node_generated.cuh",
+      "bytes": 69806,
+      "sha256": "2b7fe28ae0b68c1a1822fe7b61762b21aa002439b67e621da671fd154bca0597",
+      "git_blob_sha1": "30820b6db549ac172298204ce235dfc91ad90250",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/node/node_generated.cuh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/node/node_runtime.cu",
+      "bytes": 1651,
+      "sha256": "05462d5ba5cae422fc8b323c191f9653560c7493e2f57a90216dda1643b66453",
+      "git_blob_sha1": "8c208437b6a5e5d4ae50e6e03ac77bb6347199d9",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/node/node_runtime.cu",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/pipeline/model_pipeline.cu",
+      "bytes": 6208,
+      "sha256": "a6e6c6bf45ab794e9d62ea7fd42a221e49243d3b688fdff6e5cb67544bdd7132",
+      "git_blob_sha1": "53880bf33efd070dc8a3499f45e61d608d8bb1a5",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/pipeline/model_pipeline.cu",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/runtime/device_observer.cu",
+      "bytes": 27523,
+      "sha256": "a515446f560002db5ffc59da890424a7c6205c09d2917caf9780cab81d5d2a59",
+      "git_blob_sha1": "32198b66ba436931fd8d60164bfe5b7d09dc44a8",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/runtime/device_observer.cu",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/runtime/device_restart.cu",
+      "bytes": 30399,
+      "sha256": "28e18d41f0c21b90060c34555ce20ee174d90578b9e24dce7c28c8418684fcb1",
+      "git_blob_sha1": "e79a9e67f178bd531f8636d2f2c85453276cf497",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/runtime/device_restart.cu",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/runtime/fitting_grid.cpp",
+      "bytes": 1226,
+      "sha256": "7314ec469bcc1c82c2e7712bda2c048247a8b0332dd56ff44ff339da24645dbb",
+      "git_blob_sha1": "907b1af6322e9e8db518f25dbe8da122e3f4fbbe",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/runtime/fitting_grid.cpp",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/src/runtime/zerocopy_restart.cpp",
+      "bytes": 16238,
+      "sha256": "6db066f0e52ceeba3b2b3a2fab3d5638efd601e58cbe0b39a4efcea6ae06367d",
+      "git_blob_sha1": "c8baaecef3883603b97b86620de32dfb0c1d9d12",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/src/runtime/zerocopy_restart.cpp",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/tests/benchmark_abba.py",
+      "bytes": 3343,
+      "sha256": "b4ac036233535ac58229a016419540a25edb32262012340b832960118aff7945",
+      "git_blob_sha1": "2d9b30924a71072a7eee3e46654427f9019aa0f6",
+      "mode": 509,
+      "original_path": "production/dpa4c-runtime/tests/benchmark_abba.py",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/tests/validate_behavior.py",
+      "bytes": 8760,
+      "sha256": "413f28cb2147cbccecb1ff97904f089958ce052445023201b66853296f977314",
+      "git_blob_sha1": "a1eccf63a7d9930bd2c225f6edbf4a531bc6e402",
+      "mode": 509,
+      "original_path": "production/dpa4c-runtime/tests/validate_behavior.py",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/third_party/sources.lock.json",
+      "bytes": 1061,
+      "sha256": "6ab40644dab9846114b05b30df854f55f91e1dc307fb9910a3a472762e71bc00",
+      "git_blob_sha1": "205595dec30137c2939a57072f264341621dde95",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/third_party/sources.lock.json",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/tools/build/build_runtime.py",
+      "bytes": 17729,
+      "sha256": "93aabfa004c2435e1da316c116d9726bebc7ad8e0b43ead70af787597b970c9d",
+      "git_blob_sha1": "922b9444123b3918413db5170c44e854baac9d23",
+      "mode": 509,
+      "original_path": "production/dpa4c-runtime/tools/build/build_runtime.py",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/tools/build/host_cxx.py",
+      "bytes": 3789,
+      "sha256": "006469db5f50cc7463fec7d5f2bbf4b45bed4a36e6fea63111f04cbc303a5a08",
+      "git_blob_sha1": "83b851e1ecf37175a446ef27c4dd1ca695a88566",
+      "mode": 509,
+      "original_path": "production/dpa4c-runtime/tools/build/host_cxx.py",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/tools/build/host_cxx.sh",
+      "bytes": 146,
+      "sha256": "ee9bac87e2f15383ea21ce8dd99f2ac54a1234b8b788c4a0fb4446031e3a5acc",
+      "git_blob_sha1": "7977066d73180a514afc1d68f4d937a542a10594",
+      "mode": 509,
+      "original_path": "production/dpa4c-runtime/tools/build/host_cxx.sh",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/tools/build/python_overlay.py",
+      "bytes": 3787,
+      "sha256": "ee712f4ecb54dfd7d323e5e765e1261df32d62021506920104f67ed10ff010fb",
+      "git_blob_sha1": "555492d7e00725ced5598f094b9be24419f3e23f",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/tools/build/python_overlay.py",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/tools/build/test_python_api.py",
+      "bytes": 4134,
+      "sha256": "ed52a385f12ad626c71aa604210e91909d7008d32452d8dbff678ad2688eef06",
+      "git_blob_sha1": "c22d1ee7cc065cffc316d866f4b4f31e73d554a0",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/tools/build/test_python_api.py",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/tools/build/test_python_gc_policy.py",
+      "bytes": 3669,
+      "sha256": "245b885047b53b39db7d9f23968f152655f89056eb1c2cda2fce355575bf198b",
+      "git_blob_sha1": "30e8b52ef28e5b892f76f394eaf21856e99e032b",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/tools/build/test_python_gc_policy.py",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/tools/build/test_python_overlay.py",
+      "bytes": 2341,
+      "sha256": "592fac8743fad562ce18250ad4e3a98a51f02ef7b1c3a9dc94bad5fd0782c69e",
+      "git_blob_sha1": "86d017b7a305036a73f1ee5e4ba825782f596e1b",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/tools/build/test_python_overlay.py",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/tools/manifest/create_manifest.py",
+      "bytes": 7932,
+      "sha256": "4ea2bc71fcb79e9e160952c68cd8510da8b9d2a801e356ca607e3ec3daceee94",
+      "git_blob_sha1": "d52ab72c47a5d3f470baa2535c5787016d210c01",
+      "mode": 509,
+      "original_path": "production/dpa4c-runtime/tools/manifest/create_manifest.py",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/tools/manifest/stage_model.py",
+      "bytes": 2123,
+      "sha256": "268fb7bc01ebe65e511ff8b91b59fa8f53fa0b15086a56386762e93dc4191b25",
+      "git_blob_sha1": "c8a79e338f5a85bb82c4c268d1fc5da892408537",
+      "mode": 509,
+      "original_path": "production/dpa4c-runtime/tools/manifest/stage_model.py",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/tools/manifest/validate_runtime.py",
+      "bytes": 3199,
+      "sha256": "c4f53dcd95349aaea6316f399a9ff8bdec927d4ff347522c24e5b187cba73e45",
+      "git_blob_sha1": "f676f3007dab953a7a8e36dd3cb3581d03b3fe24",
+      "mode": 509,
+      "original_path": "production/dpa4c-runtime/tools/manifest/validate_runtime.py",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/tools/manifest/verify_runtime.py",
+      "bytes": 13264,
+      "sha256": "fb9a4925cfe04d2c0783acc9c5840fd44478b235547e92087e3e4ebea878bffc",
+      "git_blob_sha1": "02ea3cf108482c6b04f2fe68722b302651b6f8e5",
+      "mode": 509,
+      "original_path": "production/dpa4c-runtime/tools/manifest/verify_runtime.py",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/tools/packaging/package_runtime.py",
+      "bytes": 3331,
+      "sha256": "19397796cb72c12970b6fe9db708f1dd20e470277d21335cd063979a637a143f",
+      "git_blob_sha1": "deb67237855d1cfbab048a1f6089b200f038d28d",
+      "mode": 509,
+      "original_path": "production/dpa4c-runtime/tools/packaging/package_runtime.py",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/tools/postlink/README.md",
+      "bytes": 1422,
+      "sha256": "2cb65f564d41daa34e40c026ed6c95ccc27207730d5e08516725d5aaa6b9c005",
+      "git_blob_sha1": "905ed23da5769fbd55c84fdfd8788139186599d7",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/tools/postlink/README.md",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/tools/postlink/patch_lowreg_reverse.py",
+      "bytes": 16608,
+      "sha256": "62fd0d3f5b1fd26018eb82a2287856325fb5d46dfe82361b9521e58d8674eb37",
+      "git_blob_sha1": "c6d083833bb51d89a3a8595b11b41e0e188cfbed",
+      "mode": 509,
+      "original_path": "production/dpa4c-runtime/tools/postlink/patch_lowreg_reverse.py",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/tools/postlink/patch_unit_seed_fixed_isa.py",
+      "bytes": 8370,
+      "sha256": "a384cb92c638805b6a80988f818137718f12d865876600b90ff3b14644e7b960",
+      "git_blob_sha1": "d106022deaa995d9d1a8c04bc4a5b2fb3573c058",
+      "mode": 509,
+      "original_path": "production/dpa4c-runtime/tools/postlink/patch_unit_seed_fixed_isa.py",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/tools/validation/python_api_smoke.py",
+      "bytes": 5783,
+      "sha256": "be56b063242defdbbdd27478623846c2614599e848557ce3eea6a966bc5b6c41",
+      "git_blob_sha1": "16ac9b151329f8c595f51c5b02716e2c8b138841",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/tools/validation/python_api_smoke.py",
+      "status": "byte-identical"
+    },
+    {
+      "path": "production/dpa4c-runtime/tools/validation/python_gc_policy_smoke.py",
+      "bytes": 5551,
+      "sha256": "3acb3bb27fcb5b1c47a56b244f5f7e3eb572daebe894f7a71056816bad570b85",
+      "git_blob_sha1": "af93760b30ee5304c3088136784c03d233b3e0a5",
+      "mode": 436,
+      "original_path": "production/dpa4c-runtime/tools/validation/python_gc_policy_smoke.py",
+      "status": "byte-identical"
+    }
+  ],
+  "excluded_originals": [
+    {
+      "path": "production/dpa4c-runtime/docs/MIGRATION.md",
+      "reason": "private operational diary; replaced by packaging note",
+      "sha256": "0d139a1a8314a22d1d438b2bcba629b7e2bf536911d01e2de024256dabf23ca4"
+    }
+  ],
+  "native_build_performed_for_this_package": false,
+  "accelerator_tests_performed_for_this_package": false
+}

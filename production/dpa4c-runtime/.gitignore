@@ -1,0 +1,3 @@
+__pycache__/
+*.pyc
+third_party/archives/*.tar.gz

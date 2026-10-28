@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "sources": [
+    {
+      "name": "deepmd",
+      "commit": "46fdc3e8b0c92524e85dad48ee00a8555a0a7595",
+      "retrieval_reference": "46fdc3e8b0c92524e85dad48ee00a8555a0a7595",
+      "url": "https://codeload.github.com/deepmodeling/deepmd-kit/tar.gz/46fdc3e8b0c92524e85dad48ee00a8555a0a7595",
+      "archive": "third_party/archives/deepmd.tar.gz",
+      "archive_sha256": "612257609d76579d6401332596fcddee0ceb90eb720c0827faa8f6ab9b88aa0a",
+      "acquisition": "saved verified codeload archive; normal build is offline"
+    },
+    {
+      "name": "lammps",
+      "commit": "a33449868448baf3c73d8eacdb2d329b13361696",
+      "retrieval_reference": "9621ce9c6136874188a2f29c6659821a11d3bc47",
+      "url": "https://codeload.github.com/lammps/lammps/tar.gz/9621ce9c6136874188a2f29c6659821a11d3bc47",
+      "archive": "third_party/archives/lammps.tar.gz",
+      "archive_sha256": "142b767b1f3343541c8780c62b28968ac62d873760788f3eb50b6ec4b35425c9",
+      "acquisition": "saved verified codeload archive; normal build is offline"
+    }
+  ]
+}

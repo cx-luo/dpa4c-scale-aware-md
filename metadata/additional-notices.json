@@ -1,0 +1,8 @@
+[
+  {
+    "path": "LICENSES/GNU-GPL-3.0.txt",
+    "source": "https://www.gnu.org/licenses/gpl-3.0.txt",
+    "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+    "purpose": "GPLv3 text incorporated by upstream LGPLv3; not a project-wide license selection"
+  }
+]

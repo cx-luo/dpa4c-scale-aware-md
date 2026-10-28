@@ -1,0 +1,15 @@
+﻿label,full_id,md_id,full_gain_pct,md_gain_pct
+"VJP
+Si-medium",A02-full,A02-md,3.5631475292558834,4.291347051073768
+"Normalizer
+Si-large",A04-Si-large-full,A04-Si-large-md,1.4764639566427151,2.723995340090646
+"Normalizer
+CuNi-large",A04-CuNi-large-full,A04-CuNi-large-md,2.133356911655415,3.833701887852481
+"Normalizer
+MgO-large",A04-MgO-large-full,A04-MgO-large-md,1.9726318670947984,3.7280782427666415
+"Host/core
+Si-large",A05-Si-large-full,A05-Si-large-md,5.717966254281759,-0.06191172477830742
+"Padded
+CuNi-medium",A05-CuNi-medium-full,A05-CuNi-medium-md,1.739618419826372,2.486679479230358
+"Padded
+MgO-medium",A05-MgO-medium-full,A05-MgO-medium-md,1.1933667106735157,2.2844979191586123

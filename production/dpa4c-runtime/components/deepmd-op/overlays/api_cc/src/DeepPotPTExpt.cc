@@ -1,0 +1,3043 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
+#include "DeepPotPTExpt.h"
+
+#if defined(BUILD_PYTORCH) && BUILD_PT_EXPT
+#include <ATen/core/dispatch/Dispatcher.h>
+#include <c10/core/DeviceGuard.h>
+#if defined(GOOGLE_CUDA)
+#include <c10/cuda/CUDAStream.h>
+#include <torch/csrc/inductor/aoti_runner/model_container_runner_cuda.h>
+#include <cuda_runtime.h>
+#endif
+#include <torch/csrc/inductor/aoti_package/model_package_loader.h>
+#if defined(GOOGLE_CUDA)
+#include <ATen/cuda/CUDAGraph.h>
+#include <c10/cuda/CUDAGuard.h>
+#endif
+#include <functional>
+#include <filesystem>
+#include <cstring>
+#include <dlfcn.h>
+
+#include <algorithm>
+#include <cstdint>
+#include <fstream>
+#include <limits>
+#include <map>
+#include <numeric>
+#include <sstream>
+#include <type_traits>
+#include <unordered_map>
+
+#include "SimulationRegion.h"
+#include "common.h"
+#include "commonPT.h"
+#include "commonPTExpt.h"
+#include "device.h"
+#include "errors.h"
+#include "neighbor_list.h"
+
+using deepmd::ptexpt::check_call_charge_spin;
+using deepmd::ptexpt::check_charge_spin_domain;
+using deepmd::ptexpt::parse_json;
+using deepmd::ptexpt::read_chg_spin_table_ranges;
+using deepmd::ptexpt::read_default_chg_spin;
+using deepmd::ptexpt::read_zip_entry;
+
+using namespace deepmd;
+
+namespace {
+#if defined(GOOGLE_CUDA)
+cudaEvent_t g_k2pt_event = nullptr;
+cudaEvent_t g_pt2k_event = nullptr;
+void ensure_handoff_events() {
+  if (g_k2pt_event != nullptr) {
+    return;
+  }
+  DPErrcheck(cudaEventCreateWithFlags(&g_k2pt_event, cudaEventDisableTiming));
+  DPErrcheck(cudaEventCreateWithFlags(&g_pt2k_event, cudaEventDisableTiming));
+}
+
+#endif
+
+// ``extend_graph_aparam`` and ``check_graph_aparam_flat`` moved to
+// commonPT.h (deepmd namespace) so DeepSpinPTExpt.cc can share them for its
+// native-spin graph route.
+
+#if defined(GOOGLE_CUDA)
+struct ModelGraph {
+  std::unique_ptr<at::cuda::CUDAGraph> graph;
+  std::vector<std::int64_t> key;
+  int warm = 0;
+  bool broken = false;
+  long captures = 0;
+  cudaStream_t side = nullptr;
+  cudaEvent_t in = nullptr;
+  cudaEvent_t out = nullptr;
+};
+
+// Layout of DpaDirectNeighborView (op/pt/dpa4c/direct_neighbor_view.h).
+struct DpaViewKey {
+  const double* x;
+  const int* model_to_atom;
+  const int* candidate_atom;
+  const std::uint32_t* source;
+  std::int64_t stride_atom, stride_xyz, node_count;
+  double cutoff_squared, inverse_distance_unit;
+};
+
+// The raw path reads these pointers inside the captured kernels.
+void append_direct_view_key(std::vector<std::int64_t>& key) {
+  using Fn = DpaViewKey (*)();
+  static const Fn fn = [] {
+    void* f = dlsym(RTLD_DEFAULT, "dpa_get_direct_neighbor_view");
+    if (!f) {
+      if (void* h = dlopen("libdeepmd_op_pt.so", RTLD_LAZY | RTLD_NOLOAD)) f = dlsym(h, "dpa_get_direct_neighbor_view");
+    }
+    return reinterpret_cast<Fn>(f);
+  }();
+  if (!fn) {
+    key.push_back(-1);
+    return;
+  }
+  // Capture freezes the force specialization and FP32/FP64 virial
+  // writeback. A full centroid request can change that representation even
+  // when all tensor and neighbor pointers remain stable. Keep NVT's variable
+  // request byte out of the key; only its capture policy belongs here.
+  using VirialRouteFn = int (*)();
+  static const auto virial_route = reinterpret_cast<VirialRouteFn>(
+      dlsym(RTLD_DEFAULT, "dpa_chain_virial_graph_route_policy"));
+  key.push_back(virial_route ? virial_route() : -1);
+  const DpaViewKey v = fn();
+  std::int64_t cut = 0, unit = 0;
+  std::memcpy(&cut, &v.cutoff_squared, sizeof(cut));
+  std::memcpy(&unit, &v.inverse_distance_unit, sizeof(unit));
+  for (std::int64_t value : {reinterpret_cast<std::int64_t>(v.x), reinterpret_cast<std::int64_t>(v.model_to_atom),
+                             reinterpret_cast<std::int64_t>(v.candidate_atom), reinterpret_cast<std::int64_t>(v.source),
+                             v.stride_atom, v.stride_xyz, v.node_count, cut, unit}) {
+    key.push_back(value);
+  }
+}
+
+// Returns false when the caller must run the body eagerly.
+bool dpa_replay_model_graph(const std::vector<std::int64_t>& key,
+                     long nodes,
+                     int device,
+                     const std::function<void()>& body) {
+  static const int mode = [] {
+    const char* e = std::getenv("DPA_MODEL_GRAPH");
+    return e && e[0] ? std::atoi(e) : 0;
+  }();
+  static const long max_nodes = [] {
+    const char* e = std::getenv("DPA_MODEL_GRAPH_MAX_NODES");
+    return e && e[0] ? std::atol(e) : 4096L;
+  }();
+  if (!mode || nodes > max_nodes) {
+    return false;
+  }
+  static thread_local ModelGraph g;
+  if (g.broken) {
+    return false;
+  }
+  if (!g.side) {
+    DPErrcheck(cudaStreamCreateWithFlags(&g.side, cudaStreamNonBlocking));
+    DPErrcheck(cudaEventCreateWithFlags(&g.in, cudaEventDisableTiming));
+    DPErrcheck(cudaEventCreateWithFlags(&g.out, cudaEventDisableTiming));
+  }
+  if (key != g.key) {
+    g.graph.reset();
+    g.warm = 0;
+    g.key = key;
+  }
+  static const int rewarm = [] {
+    const char* e = std::getenv("DPA_MODEL_GRAPH_REWARM");
+    return e && e[0] ? std::atoi(e) : 2;
+  }();
+  if (!g.graph && g.warm < (g.captures ? rewarm : 2)) {
+    ++g.warm;
+    return false;
+  }
+  cudaStream_t current = c10::cuda::getCurrentCUDAStream();
+  DPErrcheck(cudaEventRecord(g.in, current));
+  DPErrcheck(cudaStreamWaitEvent(g.side, g.in, 0));
+  {
+    c10::cuda::CUDAStreamGuard guard(
+        c10::cuda::getStreamFromExternal(g.side, static_cast<c10::DeviceIndex>(device)));
+    if (!g.graph) {
+      auto graph = std::make_unique<at::cuda::CUDAGraph>();
+      try {
+        graph->capture_begin({0, 0}, cudaStreamCaptureModeRelaxed);
+        body();
+        graph->capture_end();
+      } catch (const std::exception& error) {
+        std::fprintf(stderr, "DPA_MODEL_GRAPH capture failed: %s\n", error.what());
+        g.broken = true;
+        cudaGraph_t partial = nullptr;
+        cudaStreamEndCapture(g.side, &partial);
+        if (partial) cudaGraphDestroy(partial);
+        cudaGetLastError();
+        graph.release();
+        return false;
+      }
+      g.graph = std::move(graph);
+      ++g.captures;
+      std::fprintf(stderr, "DPA_MODEL_GRAPH captured nodes=%ld count=%ld\n", nodes, g.captures);
+    }
+    g.graph->replay();
+  }
+  DPErrcheck(cudaEventRecord(g.out, g.side));
+  DPErrcheck(cudaStreamWaitEvent(current, g.out, 0));
+  return true;
+}
+#endif
+
+void synchronize_current_accelerator_stream() {
+#if defined(GOOGLE_CUDA)
+  // Record completion on the current PyTorch stream. The Kokkos scatter
+  // waits via consume_inference_outputs — do not stall the host here.
+  ensure_handoff_events();
+  DPErrcheck(cudaEventRecord(g_pt2k_event, c10::cuda::getCurrentCUDAStream()));
+#elif defined(TENSORFLOW_USE_ROCM)
+  DPErrcheck(gpuDeviceSynchronize());
+#else
+  throw deepmd::deepmd_exception(
+      "GPU-resident inference requires a GPU-enabled DeePMD-kit build.");
+#endif
+}
+}  // namespace
+
+#if defined(GOOGLE_CUDA)
+void deepmd::wait_producer_cuda_stream(void* producer_stream) {
+  ensure_handoff_events();
+  DPErrcheck(cudaEventRecord(g_k2pt_event,
+                             static_cast<cudaStream_t>(producer_stream)));
+  DPErrcheck(cudaStreamWaitEvent(c10::cuda::getCurrentCUDAStream(),
+                                 g_k2pt_event, 0));
+}
+
+void deepmd::consume_inference_outputs(void* consumer_stream) {
+  ensure_handoff_events();
+  DPErrcheck(cudaStreamWaitEvent(static_cast<cudaStream_t>(consumer_stream),
+                                 g_pt2k_event, 0));
+}
+#else
+void deepmd::wait_producer_cuda_stream(void*) {}
+void deepmd::consume_inference_outputs(void*) {}
+#endif
+
+namespace {
+
+template <typename VALUETYPE>
+at::Tensor make_aparam_tensor(const std::vector<VALUETYPE>& aparam,
+                              std::int64_t nloc,
+                              std::int64_t daparam,
+                              const torch::Device& device) {
+  const auto float64_options = torch::TensorOptions().dtype(torch::kFloat64);
+  if (daparam == 0) {
+    if (!aparam.empty()) {
+      throw deepmd::deepmd_exception(
+          "The model does not accept atomic parameters, but aparam is not "
+          "empty.");
+    }
+    return torch::zeros({0}, float64_options).to(device);
+  }
+
+  const std::int64_t expected = nloc * daparam;
+  if (static_cast<std::int64_t>(aparam.size()) != expected) {
+    throw deepmd::deepmd_exception(
+        "aparam has " + std::to_string(aparam.size()) +
+        " values, but the model expects nloc * daparam = " +
+        std::to_string(expected) + ".");
+  }
+  if (expected == 0) {
+    return torch::zeros({1, nloc, daparam}, float64_options).to(device);
+  }
+
+  const auto input_options =
+      std::is_same<VALUETYPE, float>::value
+          ? torch::TensorOptions().dtype(torch::kFloat32)
+          : torch::TensorOptions().dtype(torch::kFloat64);
+  return torch::from_blob(const_cast<VALUETYPE*>(aparam.data()),
+                          {1, nloc, daparam}, input_options)
+      .to(torch::kFloat64)
+      .to(device);
+}
+
+struct FrameParameterLayout {
+  std::size_t frame_size;
+  bool broadcast;
+};
+
+FrameParameterLayout resolve_frame_parameter_layout(const char* name,
+                                                    std::size_t size,
+                                                    int nframes,
+                                                    std::size_t frame_size,
+                                                    bool allow_empty) {
+  if (size == 0 && allow_empty) {
+    return {0, true};
+  }
+  const std::size_t full_size = static_cast<std::size_t>(nframes) * frame_size;
+  if (size == frame_size) {
+    return {frame_size, true};
+  }
+  if (size == full_size) {
+    return {frame_size, false};
+  }
+  throw deepmd::deepmd_exception(
+      std::string(name) + " has " + std::to_string(size) +
+      " values, but the model expects " + std::to_string(frame_size) +
+      " for frame broadcasting or " + std::to_string(full_size) +
+      " for frame-specific values.");
+}
+
+}  // namespace
+
+void DeepPotPTExpt::translate_error(std::function<void()> f) {
+  try {
+    f();
+  } catch (const c10::Error& e) {
+    throw deepmd::deepmd_exception(
+        "DeePMD-kit PyTorch Exportable backend error: " +
+        std::string(e.what()));
+  } catch (const deepmd::deepmd_exception&) {
+    throw;  // already a deepmd_exception, rethrow as-is
+  } catch (const std::exception& e) {
+    throw deepmd::deepmd_exception(
+        "DeePMD-kit PyTorch Exportable backend error: " +
+        std::string(e.what()));
+  }
+}
+
+DeepPotPTExpt::DeepPotPTExpt() : inited(false) {}
+
+DeepPotPTExpt::DeepPotPTExpt(const std::string& model,
+                             const int& gpu_rank,
+                             const std::string& file_content)
+    : inited(false) {
+  try {
+    translate_error([&] { init(model, gpu_rank, file_content); });
+  } catch (...) {
+    throw;
+  }
+}
+
+void DeepPotPTExpt::init(const std::string& model,
+                         const int& gpu_rank,
+                         const std::string& file_content) {
+  if (inited) {
+    std::cerr << "WARNING: deepmd-kit should not be initialized twice, do "
+                 "nothing at the second call of initializer"
+              << std::endl;
+    return;
+  }
+
+  // Load libdeepmd_op_pt.so so its TORCH_LIBRARY_FRAGMENT entries
+  // (deepmd::*, deepmd_export::*) are visible to torch's dispatcher
+  // before the AOTI module loads.  Without this, multi-rank message-passing
+  // .pt2 archives fail at pair_style time with
+  // ``Could not find schema for deepmd_export::border_op``.
+  deepmd::load_op_library(deepmd::DPBackend::PyTorchExportable);
+
+  if (!file_content.empty()) {
+    throw deepmd::deepmd_exception(
+        "In-memory file_content loading is not supported for .pt2 models. "
+        "Please provide a file path instead.");
+  }
+
+  int gpu_num = torch::cuda::device_count();
+  gpu_id = (gpu_num > 0) ? (gpu_rank % gpu_num) : 0;
+  gpu_enabled = torch::cuda::is_available();
+
+  std::string device_str;
+  if (!gpu_enabled) {
+    device_str = "cpu";
+    std::cout << "load model from: " << model << " to cpu" << std::endl;
+  } else {
+#if GOOGLE_CUDA || TENSORFLOW_USE_ROCM
+    DPErrcheck(DPSetDevice(gpu_id));
+#endif
+    device_str = "cuda:" + std::to_string(gpu_id);
+    std::cout << "load model from: " << model << " to gpu " << gpu_id
+              << std::endl;
+  }
+
+  // Read metadata from the .pt2 ZIP archive
+  std::string metadata_json = read_zip_entry(model, "extra/metadata.json");
+
+  auto metadata = parse_json(metadata_json);
+  rcut = metadata["rcut"].as_double();
+  ntypes = metadata.obj_val.count("ntypes")
+               ? metadata["ntypes"].as_int()
+               : static_cast<int>(metadata["type_map"].as_array().size());
+  dfparam = metadata["dim_fparam"].as_int();
+  daparam = metadata["dim_aparam"].as_int();
+  dchgspin = metadata.obj_val.count("dim_chg_spin")
+                 ? metadata["dim_chg_spin"].as_int()
+                 : 0;
+  // A model whose lower reads the condition as an input accepts exactly that
+  // condition; the charge-state fold, loaded below, widens this for a
+  // compressed model, whose lower has no conditioning input at all.
+  settable_chgspin = dchgspin;
+  aparam_nall = false;  // pt_expt models use nloc for aparam
+  if (metadata.obj_val.count("has_default_fparam")) {
+    has_default_fparam_ = metadata["has_default_fparam"].as_bool();
+  } else {
+    has_default_fparam_ = false;
+  }
+  if (has_default_fparam_) {
+    if (metadata.obj_val.count("default_fparam")) {
+      default_fparam_.clear();
+      for (const auto& v : metadata["default_fparam"].as_array()) {
+        default_fparam_.push_back(v.as_double());
+      }
+      if (static_cast<int>(default_fparam_.size()) != dfparam) {
+        throw deepmd::deepmd_exception(
+            "default_fparam length (" + std::to_string(default_fparam_.size()) +
+            ") does not match dim_fparam (" + std::to_string(dfparam) + ").");
+      }
+    } else {
+      std::cerr << "WARNING: Model has has_default_fparam=true but "
+                   "default_fparam values are missing from metadata. "
+                   "Empty fparam will not be substituted. Please regenerate "
+                   "the .pt2 model with an updated version of deepmd-kit."
+                << std::endl;
+    }
+  }
+  default_chg_spin_ = read_default_chg_spin(metadata, dchgspin);
+  chg_spin_table_ranges_ = read_chg_spin_table_ranges(metadata, dchgspin);
+  check_charge_spin_domain(default_chg_spin_, chg_spin_table_ranges_);
+
+  if (metadata.obj_val.count("do_atomic_virial")) {
+    do_atomic_virial = metadata["do_atomic_virial"].as_bool();
+  } else {
+    // Older models without this field were exported with do_atomic_virial=True
+    do_atomic_virial = true;
+  }
+
+  // Read expected nnei (= sum(sel)) — the .pt2 graph has this dimension static.
+  if (metadata.obj_val.count("nnei")) {
+    nnei = metadata["nnei"].as_int();
+  } else {
+    // Fallback: compute from sel array
+    nnei = 0;
+    for (const auto& v : metadata["sel"].as_array()) {
+      nnei += v.as_int();
+    }
+  }
+  if (metadata.obj_val.count("lower_input_kind")) {
+    const std::string lower_input_kind =
+        metadata["lower_input_kind"].as_string();
+    lower_input_is_edge_ = lower_input_kind == "edge_vec";
+    lower_input_is_graph_ = lower_input_kind == "graph";
+    lower_input_is_canonical_ = lower_input_kind == "dpa1_canonical" ||
+                                lower_input_kind == "dpa4c_canonical";
+  } else {
+    lower_input_is_edge_ = false;
+    lower_input_is_graph_ = false;
+    lower_input_is_canonical_ = false;
+  }
+  if (lower_input_is_edge_) {
+    std::cerr << "WARNING: This .pt2 uses the deprecated edge_vec lower "
+                 "schema (pt-backend SeZM/DPA4 freeze). Support will be "
+                 "removed in a future release; refreeze the checkpoint with "
+                 "the pt_expt backend (graph schema)."
+              << std::endl;
+  }
+  graph_edge_fp32_ = false;
+  if (metadata.obj_val.count("graph_edge_dtype")) {
+    const std::string graph_edge_dtype =
+        metadata["graph_edge_dtype"].as_string();
+    if (graph_edge_dtype != "float32" && graph_edge_dtype != "float64") {
+      throw deepmd::deepmd_exception(
+          "metadata graph_edge_dtype must be 'float32' or 'float64'.");
+    }
+    graph_edge_fp32_ = graph_edge_dtype == "float32";
+  }
+  if (lower_input_is_canonical_) {
+    if (!graph_edge_fp32_) {
+      throw deepmd::deepmd_exception(
+          "compact canonical graph artifacts require float32 edge vectors.");
+    }
+    if (!metadata.obj_val.count("canonical_index_dtype") ||
+        metadata["canonical_index_dtype"].as_string() != "uint32") {
+      throw deepmd::deepmd_exception(
+          "compact canonical graph artifacts require uint32 topology; "
+          "re-freeze the model with the current DeePMD-kit version.");
+    }
+  }
+
+  type_map.clear();
+  for (const auto& v : metadata["type_map"].as_array()) {
+    type_map.push_back(v.as_string());
+  }
+
+  // Parse output keys from metadata
+  output_keys.clear();
+  for (const auto& v : metadata["output_keys"].as_array()) {
+    output_keys.push_back(v.as_string());
+  }
+
+  // The fixed runtime stages the model package once. The SDK package
+  // loader otherwise extracts into a hard-coded system temporary directory.
+  const char* staged_library = std::getenv("DPA_AOTI_MODEL_LIBRARY");
+  if (staged_library && staged_library[0]) {
+#if defined(GOOGLE_CUDA)
+    const char* staged_directory = std::getenv("DPA_AOTI_MODEL_DIRECTORY");
+    if (!gpu_enabled || !staged_directory || !staged_directory[0])
+      throw deepmd::deepmd_exception("Staged AOTI package requires its GPU directory");
+    const auto library = std::filesystem::canonical(staged_library);
+    const auto directory = std::filesystem::canonical(staged_directory);
+    const auto model_directory = std::filesystem::canonical(model).parent_path();
+    if (library.parent_path() != directory ||
+        directory.string().find(model_directory.string() + "/") != 0 ||
+        directory.string().find("/workspace/") != 0)
+      throw deepmd::deepmd_exception("Staged AOTI package is outside the model runtime");
+    const char* single = std::getenv("DPA_AOTI_SINGLE");
+    staged_runner_ = std::make_unique<torch::inductor::AOTIModelContainerRunnerCuda>(
+        library.string(), 1, "cuda:" + std::to_string(gpu_id),
+        directory.string(), single && single[0] == '1');
+    std::fprintf(stderr, "DPA_STAGED_AOTI model package active\n");
+#else
+    throw deepmd::deepmd_exception("Staged AOTI package requires CUDA support");
+#endif
+  } else {
+    loader = std::make_unique<torch::inductor::AOTIModelPackageLoader>(
+        model, "model", [] {
+          const char* e = std::getenv("DPA_AOTI_SINGLE");
+          return e && e[0] == '1';
+        }(), 1, gpu_enabled ? static_cast<c10::DeviceIndex>(gpu_id)
+                          : static_cast<c10::DeviceIndex>(-1));
+  }
+
+  // The optional with-comm artifact drives multi-rank message-passing
+  // inference. Archives without ``has_comm_artifact`` default to false. When
+  // the flag is set but the nested artifact fails to extract or compile,
+  // ``has_comm_artifact_`` stays true so single-rank dispatch keeps working
+  // while multi-rank dispatch raises at ``run_model_with_comm`` rather than
+  // silently dropping the ghost exchange.
+  has_comm_artifact_ = metadata.obj_val.count("has_comm_artifact") &&
+                       metadata["has_comm_artifact"].as_bool();
+  // Whether the regular .pt2 graph consumes ``mapping`` to gather ghost
+  // features, i.e. the descriptor performs message passing. Read from the
+  // ``has_message_passing`` metadata field; archives without it default to
+  // non-message-passing.
+  has_message_passing_ = metadata.obj_val.count("has_message_passing") &&
+                         metadata["has_message_passing"].as_bool();
+
+  // Model-level pair-type exclusion table.  ``pair_exclude_types`` is a list
+  // of [ti, tj] pairs; rebuild the flat (ntypes+1)^2 keep table exactly like
+  // the Python ``PairExcludeMask`` ctor.  Exclusion is a BUILD-time transform
+  // (decision #18/A4): the C++ ingestion seam is the single application site
+  // (applyPairExclusion graph / applyPairExclusionNlist dense); the exported
+  // lowers consume pre-excluded inputs and never re-apply it.
+  //
+  // Upload the table to the model device ONCE here (device is fixed by
+  // ``gpu_id`` / ``gpu_enabled``), so the per-step seam helpers only
+  // ``index_select`` it -- no per-``compute()`` CPU clone + H2D copy.  Leave
+  // ``pair_exclude_table_`` undefined (=> identity) when there is no exclusion.
+  {
+    std::vector<std::pair<int, int>> pair_exclude_types;
+    if (metadata.obj_val.count("pair_exclude_types")) {
+      for (const auto& v : metadata["pair_exclude_types"].as_array()) {
+        pair_exclude_types.emplace_back(v[0].as_int(), v[1].as_int());
+      }
+    }
+    std::vector<int> tbl =
+        deepmd::buildPairExcludeTable(ntypes, pair_exclude_types);
+    if (!tbl.empty()) {
+      torch::Device device(torch::kCUDA, gpu_id);
+      if (!gpu_enabled) {
+        device = torch::Device(torch::kCPU);
+      }
+      pair_exclude_table_ =
+          torch::from_blob(tbl.data(), {static_cast<std::int64_t>(tbl.size())},
+                           torch::TensorOptions().dtype(torch::kInt32))
+              .clone()
+              .to(device);
+      pair_exclude_host_ = std::move(tbl);
+    }
+  }
+
+  if (metadata.obj_val.count("graph_source_csr")) {
+    graph_reads_source_csr_ = metadata["graph_source_csr"].as_bool();
+  }
+  if (has_comm_artifact_) {
+    try {
+      // Extract the nested ``extra/forward_lower_with_comm.pt2`` into a
+      // temp file and load it as a second AOTI module. The TempFile
+      // unlinks the temp file on destruction.
+      with_comm_tempfile_ = std::make_unique<deepmd::ptexpt::TempFile>(
+          deepmd::ptexpt::TempFile::from_zip_entry(
+              model, "extra/forward_lower_with_comm.pt2"));
+      with_comm_loader =
+          std::make_unique<torch::inductor::AOTIModelPackageLoader>(
+              with_comm_tempfile_->path(), "model", false, 1,
+              gpu_enabled ? static_cast<c10::DeviceIndex>(gpu_id)
+                          : static_cast<c10::DeviceIndex>(-1));
+    } catch (const std::exception& e) {
+      std::cerr << "DeepPotPTExpt: failed to load with-comm artifact ("
+                << e.what()
+                << "); single-rank inference will still work, but multi-rank "
+                   "LAMMPS dispatch will throw."
+                << std::endl;
+      with_comm_tempfile_.reset();
+      with_comm_loader.reset();
+    }
+  }
+
+  // Charge-state fold.  Unlike the with-comm artifact, a failure here is not
+  // a degraded mode to defer: the metadata field is the archive's claim that
+  // the fold ships with it, so an archive that declares the constants but
+  // cannot supply the fold is malformed.
+  charge_state_fold_ = deepmd::ptexpt::ChargeStateFold::load(
+      model, metadata, gpu_enabled, gpu_id);
+  if (charge_state_fold_) {
+    // The condition of a compressed model reaches the compiled lower only
+    // through the constants the fold rebuilds, so the argument list carries
+    // none and ``dchgspin`` is zero.  What the model accepts is the state the
+    // snapshot was frozen against, which is also the layout the fold consumes.
+    settable_chgspin =
+        metadata.obj_val.count("default_chg_spin")
+            ? static_cast<int>(metadata["default_chg_spin"].as_array().size())
+            : 0;
+    if (settable_chgspin == 0) {
+      throw deepmd::deepmd_exception(
+          "the archive ships a charge-state fold but names no "
+          "default_chg_spin, so the width of a charge state is unknown");
+    }
+    // The constants were frozen against the archive's own charge state, so
+    // that is the state in force until ``set_charge_spin`` installs another.
+    default_chg_spin_ = read_default_chg_spin(metadata, settable_chgspin);
+    chg_spin_table_ranges_ =
+        read_chg_spin_table_ranges(metadata, settable_chgspin);
+    check_charge_spin_domain(default_chg_spin_, chg_spin_table_ranges_);
+  }
+
+  int num_intra_nthreads, num_inter_nthreads;
+  get_env_nthreads(num_intra_nthreads, num_inter_nthreads);
+  if (num_inter_nthreads) {
+    try {
+      at::set_num_interop_threads(num_inter_nthreads);
+    } catch (...) {
+    }
+  }
+  if (num_intra_nthreads) {
+    try {
+      at::set_num_threads(num_intra_nthreads);
+    } catch (...) {
+    }
+  }
+
+  inited = true;
+}
+
+DeepPotPTExpt::~DeepPotPTExpt() {}
+
+void DeepPotPTExpt::set_charge_spin(const std::vector<double>& charge_spin) {
+  assert(inited);
+  if (settable_chgspin == 0) {
+    throw deepmd::deepmd_exception(
+        "this model was not frozen with a charge/spin condition");
+  }
+  if (static_cast<int>(charge_spin.size()) != settable_chgspin) {
+    throw deepmd::deepmd_exception("the charge/spin condition carries " +
+                                   std::to_string(charge_spin.size()) +
+                                   " values but the model expects " +
+                                   std::to_string(settable_chgspin));
+  }
+  check_charge_spin_domain(charge_spin, chg_spin_table_ranges_);
+  // All allocation completes before the compiled constants change. The final
+  // vector swap is non-throwing, so the visible default follows the installed
+  // constants without opening a second failure point.
+  std::vector<double> next_charge_spin(charge_spin);
+  if (charge_state_fold_) {
+    charge_state_fold_->apply(charge_spin,
+                              gpu_enabled ? torch::Device(torch::kCUDA, gpu_id)
+                                          : torch::Device(torch::kCPU),
+                              *loader);
+  }
+  default_chg_spin_.swap(next_charge_spin);
+}
+
+std::vector<torch::Tensor> DeepPotPTExpt::run_package(
+    const std::vector<torch::Tensor>& inputs) {
+  if (staged_runner_) return staged_runner_->run(inputs);
+  return loader->run(inputs);
+}
+
+std::vector<torch::Tensor> DeepPotPTExpt::run_model(
+    const torch::Tensor& coord,
+    const torch::Tensor& atype,
+    const torch::Tensor& nlist,
+    const torch::Tensor& mapping,
+    const torch::Tensor& fparam,
+    const torch::Tensor& aparam,
+    const torch::Tensor& charge_spin) {
+  // Only include fparam/aparam/charge_spin if the model was exported with them.
+  // When they are None at export time, AOTInductor compiles with fewer inputs.
+  std::vector<torch::Tensor> inputs = {coord, atype, nlist, mapping};
+  if (dfparam > 0) {
+    inputs.push_back(fparam);
+  }
+  if (daparam > 0) {
+    inputs.push_back(aparam);
+  }
+  if (dchgspin > 0) {
+    inputs.push_back(charge_spin);
+  }
+  return run_package(inputs);
+}
+
+std::vector<torch::Tensor> DeepPotPTExpt::run_model_edges(
+    const torch::Tensor& coord,
+    const torch::Tensor& atype,
+    const torch::Tensor& edge_index,
+    const torch::Tensor& edge_vec,
+    const torch::Tensor& edge_scatter_index,
+    const torch::Tensor& edge_mask,
+    const torch::Tensor& fparam,
+    const torch::Tensor& aparam,
+    const torch::Tensor& charge_spin) {
+  std::vector<torch::Tensor> inputs = {
+      coord, atype, edge_index, edge_vec, edge_scatter_index, edge_mask};
+  if (dfparam > 0) {
+    inputs.push_back(fparam);
+  }
+  if (daparam > 0) {
+    inputs.push_back(aparam);
+  }
+  if (dchgspin > 0) {
+    inputs.push_back(charge_spin);
+  }
+  return run_package(inputs);
+}
+
+std::vector<torch::Tensor> DeepPotPTExpt::run_model_graph(
+    const torch::Tensor& atype,
+    const torch::Tensor& n_node,
+    const torch::Tensor& n_local,
+    const torch::Tensor& edge_index,
+    const torch::Tensor& edge_vec,
+    const torch::Tensor& edge_mask,
+    const torch::Tensor& destination_order,
+    const torch::Tensor& destination_row_ptr,
+    const torch::Tensor& source_order,
+    const torch::Tensor& source_row_ptr,
+    const torch::Tensor& fparam,
+    const torch::Tensor& aparam,
+    const torch::Tensor& charge_spin) {
+  // Graph-input ABI: original edge payload plus destination/source CSR views.
+  check_graph_aparam_flat(aparam, daparam, "run_model_graph");
+  std::vector<torch::Tensor> inputs = {
+      atype,        n_node,        n_local,           edge_index,
+      edge_vec,     edge_mask,     destination_order, destination_row_ptr,
+      source_order, source_row_ptr};
+  if (dfparam > 0) {
+    inputs.push_back(fparam);
+  }
+  if (daparam > 0) {
+    inputs.push_back(aparam);
+  }
+  if (dchgspin > 0) {
+    inputs.push_back(charge_spin);
+  }
+  return run_package(inputs);
+}
+
+std::vector<torch::Tensor> DeepPotPTExpt::run_model_canonical_graph(
+    const torch::Tensor& atype,
+    const torch::Tensor& n_node,
+    const torch::Tensor& n_local,
+    const torch::Tensor& source,
+    const torch::Tensor& edge_vec,
+    const torch::Tensor& destination_row_ptr,
+    const torch::Tensor& source_row_ptr,
+    const torch::Tensor& source_order) {
+  return run_package({atype, n_node, n_local, source, edge_vec,
+                      destination_row_ptr, source_row_ptr, source_order});
+}
+
+std::vector<torch::Tensor> DeepPotPTExpt::run_model_with_comm(
+    const torch::Tensor& coord,
+    const torch::Tensor& atype,
+    const torch::Tensor& nlist,
+    const torch::Tensor& mapping,
+    const torch::Tensor& fparam,
+    const torch::Tensor& aparam,
+    const torch::Tensor& charge_spin,
+    const std::vector<at::Tensor>& comm_tensors) {
+  if (!with_comm_loader) {
+    throw deepmd::deepmd_exception(
+        "The with-comm artifact is unavailable for this model. Multi-rank "
+        "message-passing inference requires a with-comm artifact that is both "
+        "present in the .pt2 metadata and successfully loaded.");
+  }
+  if (comm_tensors.size() != 8) {
+    throw deepmd::deepmd_exception(
+        "run_model_with_comm: comm_tensors must contain exactly 8 tensors "
+        "(send_list, send_proc, recv_proc, send_num, recv_num, "
+        "communicator, nlocal, nghost). Got " +
+        std::to_string(comm_tensors.size()) + ".");
+  }
+  std::vector<torch::Tensor> inputs = {coord, atype, nlist, mapping};
+  if (dfparam > 0) {
+    inputs.push_back(fparam);
+  }
+  if (daparam > 0) {
+    inputs.push_back(aparam);
+  }
+  if (dchgspin > 0) {
+    inputs.push_back(charge_spin);
+  }
+  for (const auto& t : comm_tensors) {
+    inputs.push_back(t);
+  }
+  return with_comm_loader->run(inputs);
+}
+
+std::vector<torch::Tensor> DeepPotPTExpt::run_model_edges_with_comm(
+    const torch::Tensor& coord,
+    const torch::Tensor& atype,
+    const torch::Tensor& extended_atype,
+    const torch::Tensor& edge_index,
+    const torch::Tensor& edge_vec,
+    const torch::Tensor& edge_scatter_index,
+    const torch::Tensor& edge_mask,
+    const torch::Tensor& fparam,
+    const torch::Tensor& aparam,
+    const torch::Tensor& charge_spin,
+    const std::vector<at::Tensor>& comm_tensors) {
+  if (!with_comm_loader) {
+    throw deepmd::deepmd_exception(
+        "The with-comm artifact is unavailable for this model. Multi-rank "
+        "message-passing inference requires a with-comm artifact that is both "
+        "present in the .pt2 metadata and successfully loaded.");
+  }
+  if (comm_tensors.size() != 8) {
+    throw deepmd::deepmd_exception(
+        "run_model_edges_with_comm: comm_tensors must contain exactly 8 "
+        "tensors (send_list, send_proc, recv_proc, send_num, recv_num, "
+        "communicator, nlocal, nghost). Got " +
+        std::to_string(comm_tensors.size()) + ".");
+  }
+  std::vector<torch::Tensor> inputs = {coord,      atype,    extended_atype,
+                                       edge_index, edge_vec, edge_scatter_index,
+                                       edge_mask};
+  if (dfparam > 0) {
+    inputs.push_back(fparam);
+  }
+  if (daparam > 0) {
+    inputs.push_back(aparam);
+  }
+  if (dchgspin > 0) {
+    inputs.push_back(charge_spin);
+  }
+  for (const auto& t : comm_tensors) {
+    inputs.push_back(t);
+  }
+  return with_comm_loader->run(inputs);
+}
+
+std::vector<torch::Tensor> DeepPotPTExpt::run_model_graph_with_comm(
+    const torch::Tensor& atype,
+    const torch::Tensor& n_node,
+    const torch::Tensor& n_local,
+    const torch::Tensor& edge_index,
+    const torch::Tensor& edge_vec,
+    const torch::Tensor& edge_mask,
+    const torch::Tensor& destination_order,
+    const torch::Tensor& destination_row_ptr,
+    const torch::Tensor& source_order,
+    const torch::Tensor& source_row_ptr,
+    const torch::Tensor& fparam,
+    const torch::Tensor& aparam,
+    const torch::Tensor& charge_spin,
+    const std::vector<at::Tensor>& comm_tensors) {
+  if (!with_comm_loader) {
+    throw deepmd::deepmd_exception(
+        "run_model_graph_with_comm called but the with-comm artifact is not "
+        "available. Either the .pt2 file has no with-comm artifact compiled "
+        "(programming error: the caller should check has_comm_artifact_ "
+        "before invoking this path), or the artifact was present in the "
+        ".pt2 metadata but failed to load at init time (see earlier stderr "
+        "log). Multi-rank LAMMPS requires a working with-comm artifact.");
+  }
+  if (comm_tensors.size() != 8) {
+    throw deepmd::deepmd_exception(
+        "run_model_graph_with_comm: comm_tensors must contain exactly 8 "
+        "tensors (send_list, send_proc, recv_proc, send_num, recv_num, "
+        "communicator, nlocal, nghost). Got " +
+        std::to_string(comm_tensors.size()) + ".");
+  }
+  check_graph_aparam_flat(aparam, daparam, "run_model_graph_with_comm");
+  // NeighborGraph ABI: the 13-input base of run_model_graph (atype, n_node,
+  // n_local, edge_index, edge_vec, edge_mask, destination_order,
+  // destination_row_ptr, source_order, source_row_ptr, [fparam], [aparam],
+  // [charge_spin]) with the 8 comm tensors appended, like
+  // run_model_with_comm / run_model_edges_with_comm.
+  //
+  // Device placement: the base tensors (n_local included) live on the model
+  // device -- n_local feeds the in-graph owned-node mask, a device kernel
+  // after ``move_to_device_pass`` (a CPU tensor fed there is read as a
+  // device pointer -- CUDA illegal memory access, first observed live in
+  // the dpa2 graph LAMMPS MP test).  The 8 comm tensors stay ON CPU,
+  // symmetric with the dense with-comm route: they are consumed only by the
+  // opaque ``deepmd_export::border_op`` whose HOST code dereferences their
+  // ``data_ptr`` directly (``send_list`` even carries raw host pointers)
+  // and reads ``nlocal``/``nghost`` via cheap host ``.item()`` calls --
+  // splitting the compute role (device n_local) from the host-MPI-control
+  // role removes the per-layer synchronizing D2H scalar reads a
+  // device-placed nlocal forced inside border_op (2 per layer forward + 2
+  // per layer backward).
+  std::vector<torch::Tensor> inputs = {
+      atype,        n_node,        n_local,           edge_index,
+      edge_vec,     edge_mask,     destination_order, destination_row_ptr,
+      source_order, source_row_ptr};
+  if (dfparam > 0) {
+    inputs.push_back(fparam);
+  }
+  if (daparam > 0) {
+    inputs.push_back(aparam);
+  }
+  if (dchgspin > 0) {
+    inputs.push_back(charge_spin);
+  }
+  for (const auto& ct : comm_tensors) {
+    inputs.push_back(ct);
+  }
+  return with_comm_loader->run(inputs);
+}
+
+void DeepPotPTExpt::extract_outputs(
+    std::map<std::string, torch::Tensor>& output_map,
+    const std::vector<torch::Tensor>& flat_outputs) {
+  if (flat_outputs.size() != output_keys.size()) {
+    throw deepmd::deepmd_exception(
+        "Model returned " + std::to_string(flat_outputs.size()) +
+        " outputs but expected " + std::to_string(output_keys.size()) +
+        " (from metadata.json)");
+  }
+  for (size_t i = 0; i < output_keys.size(); ++i) {
+    output_map[output_keys[i]] = flat_outputs[i];
+  }
+}
+
+template <typename VALUETYPE, typename ENERGYVTYPE>
+void DeepPotPTExpt::compute(ENERGYVTYPE& ener,
+                            std::vector<VALUETYPE>& force,
+                            std::vector<VALUETYPE>& virial,
+                            std::vector<VALUETYPE>& atom_energy,
+                            std::vector<VALUETYPE>& atom_virial,
+                            const std::vector<VALUETYPE>& coord,
+                            const std::vector<int>& atype,
+                            const std::vector<VALUETYPE>& box,
+                            const int nghost,
+                            const InputNlist& lmp_list,
+                            const int& ago,
+                            const std::vector<VALUETYPE>& fparam,
+                            const std::vector<VALUETYPE>& aparam,
+                            const std::vector<double>& charge_spin,
+                            const bool atomic) {
+  // Fail fast before allocating any tensors: refuse to run if the caller
+  // asked for atomic virial but the .pt2 was exported without it.
+  if (atomic && !do_atomic_virial) {
+    throw deepmd::deepmd_exception(
+        "Atomic virial was requested (e.g. by LAMMPS compute */atom/virial) "
+        "but this .pt2 model was exported without it (metadata field "
+        "do_atomic_virial=False). Atomic virial adds ~2.5x inference cost "
+        "and is off by default for .pt2. To enable it, regenerate with: "
+        "dp convert-backend --atomic-virial INPUT.pth OUTPUT.pt2");
+  }
+  // A single-frame call names at most one charge state, and only one this
+  // model can serve.
+  check_call_charge_spin(charge_spin, /*nframes=*/1, settable_chgspin,
+                         dchgspin > 0, default_chg_spin_,
+                         chg_spin_table_ranges_);
+  torch::Device device(torch::kCUDA, gpu_id);
+  if (!gpu_enabled) {
+    device = torch::Device(torch::kCPU);
+  }
+  int natoms = atype.size();
+  // Always use float64 for model inputs — the .pt2 model is compiled with
+  // float64 and AOTInductor does not auto-cast.  We only cast outputs back
+  // to VALUETYPE at the end.
+  auto options = torch::TensorOptions().dtype(torch::kFloat64);
+  torch::ScalarType floatType = torch::kFloat64;
+  if (std::is_same<VALUETYPE, float>::value) {
+    floatType = torch::kFloat32;
+  }
+  auto int_option =
+      torch::TensorOptions().device(torch::kCPU).dtype(torch::kInt64);
+
+  // Select real atoms (filter NULL-type atoms)
+  std::vector<VALUETYPE> dcoord, dforce, aparam_, datom_energy, datom_virial;
+  std::vector<int> datype, fwd_map, bkw_map;
+  int nghost_real, nall_real, nloc_real;
+  int nall = natoms;
+  select_real_atoms_coord(dcoord, datype, aparam_, nghost_real, fwd_map,
+                          bkw_map, nall_real, nloc_real, coord, atype, aparam,
+                          nghost, ntypes, 1, daparam, nall, aparam_nall);
+  int nloc = nall_real - nghost_real;
+  int nframes = 1;
+
+  // Convert coord to float64 for model input
+  // NOTE: must .clone() because from_blob does not copy data, and the local
+  // vectors would go out of scope before run_model completes.
+  std::vector<double> coord_d(dcoord.begin(), dcoord.end());
+  at::Tensor coord_Tensor =
+      torch::from_blob(coord_d.data(), {1, nall_real, 3}, options)
+          .clone()
+          .to(device);
+  std::vector<std::int64_t> atype_64(datype.begin(), datype.end());
+  at::Tensor atype_Tensor =
+      torch::from_blob(atype_64.data(), {1, nall_real}, int_option)
+          .clone()
+          .to(device);
+
+  // Dispatch decision: use the with-comm artifact when LAMMPS is running
+  // multi-rank.  ``lmp_list.nprocs > 1`` is the direct predicate;
+  // LAMMPS pair styles populate it by passing ``comm->nprocs`` to the
+  // ``InputNlist`` constructor.  ``nprocs`` is the unambiguous predicate;
+  // ``nswap`` is nonzero even single-rank for ``atom_style spin`` (periodic
+  // ghost-spin propagation), so it cannot serve as a multi-rank proxy.
+  //
+  // The regular artifact uses ``mapping`` to gather ghost-atom features
+  // from local-atom embeddings (``index_select(node_ebd[1, nloc, dim],
+  // mapping)``).  Identity-mapping for ghost slots is silently wrong,
+  // so fail-fast when the regular path would be taken without a real
+  // mapping — applies uniformly to every caller (LAMMPS pair, ctest
+  // fixtures, direct C++ API users).  Callers that want the regular
+  // path must populate ``lmp_list.mapping``.
+  bool multi_rank = (lmp_list.nprocs > 1);
+  bool atom_map_present = (lmp_list.mapping != nullptr);
+  bool use_with_comm = has_comm_artifact_ && multi_rank;
+  // Whether the edge topology folds ghost neighbours onto their local owners,
+  // which reads an owner for every extended atom out of ``mapping_``.  The
+  // edge lower folds unless the with-comm artifact carries ghost features
+  // across ranks; the graph and canonical lowers fold on a single rank and
+  // keep the extended node set under domain decomposition, where ghost forces
+  // reverse-communicate to their owners instead.  The dense lower builds no
+  // edge topology and therefore never folds.
+  const bool fold_to_local =
+      lower_input_is_edge_
+          ? !use_with_comm
+          : ((lower_input_is_graph_ || lower_input_is_canonical_) &&
+             !multi_rank);
+  // NeighborGraph multi-rank dispatch:
+  //   - NON-message-passing (dpa1, se_e2_a, ...): the SAME single-rank graph
+  //     .pt2 runs on the EXTENDED region (fold_to_local=false; ghosts are
+  //     distinct nodes whose features come from their real ghost types).  No
+  //     with-comm artifact / no border_op is needed; ghost reaction forces are
+  //     folded to their owners by LAMMPS reverse-comm.  Handled below.
+  //   - message-passing graph (DPA2/DPA3): multi-rank requires a with-comm
+  //     graph artifact for cross-rank ghost-feature exchange
+  //     (``run_model_graph_with_comm``, below).  Fail fast before building any
+  //     tensors when that artifact is missing, so callers get a clear message
+  //     instead of a wrong answer or the loader's own runtime error.
+  if (lower_input_is_graph_ && multi_rank && has_message_passing_) {
+    if (!has_comm_artifact_ || !with_comm_loader) {
+      throw deepmd::deepmd_exception(
+          "Multi-rank message-passing graph .pt2 inference requires a "
+          "with-comm artifact; re-freeze the model with a deepmd-kit that "
+          "exports it (this .pt2 predates multi-rank graph support).");
+    }
+  }
+  // Dispatch guards for message-passing models:
+  //   non-message-passing, or nghost == 0: the regular path is always safe.
+  //   message-passing, multi-rank:  requires the with-comm artifact.
+  //   message-passing, single-rank: requires the atom map (mapping tensor).
+  if (!lower_input_is_canonical_ && has_message_passing_ && nghost > 0) {
+    if (multi_rank && !has_comm_artifact_) {
+      throw deepmd::deepmd_exception(
+          "Multi-rank LAMMPS .pt2 inference requires the model to be "
+          "exported with `use_loc_mapping=False`, which compiles a "
+          "with-comm artifact for cross-rank ghost-feature exchange. "
+          "Re-export the model with use_loc_mapping=False and try again.");
+    }
+    if (!multi_rank && !atom_map_present) {
+      throw deepmd::deepmd_exception(
+          "Single-rank LAMMPS .pt2 inference requires `atom_modify map "
+          "yes` in the LAMMPS input (so InputNlist.mapping is populated "
+          "from the LAMMPS atom-map).  The model gathers ghost-atom "
+          "features via this mapping; without it the C++ side has no "
+          "safe way to resolve ghost indices to local owners.  C++ API "
+          "callers must set inlist.mapping explicitly before compute().");
+    }
+  }
+  // Folding resolves every real extended atom to a local owner, so it needs
+  // the atom map for the same reason the ghost-feature gather above does, and
+  // for every lower that builds an edge topology rather than only for a
+  // message-passing one.  Without the map the owner table below degrades to
+  // the identity, whose ghost entries are not local atoms; establishing the
+  // precondition here reports it once, ahead of any tensor, instead of
+  // leaving it to the per-edge lookup inside the topology build.
+  if (fold_to_local && nghost_real > 0 && !atom_map_present) {
+    throw deepmd::deepmd_exception(
+        "This .pt2 lower folds ghost neighbours onto their local owners, "
+        "which needs an owner for each of the " +
+        std::to_string(nghost_real) +
+        " ghost atoms: add `atom_modify map yes` to the LAMMPS input, or, as "
+        "a C++ API caller, set inlist.mapping before compute().");
+  }
+
+  // LAMMPS sets ago=0 on every nlist rebuild (neighbor rebuild, re-partition,
+  // atom exchange between subdomains), so `ago > 0` implies the cached
+  // mapping and nlist tensors are still valid.  Rebuild only on ago==0.
+  if (ago == 0) {
+    nlist_data.copy_from_nlist(lmp_list, nall - nghost);
+    nlist_data.shuffle_exclude_empty(fwd_map);
+
+    // Rebuild mapping vector and tensor (cached as members). ``mapping_tensor``
+    // is consumed every step by the dense ``run_model`` (ghost-feature gather);
+    // the ``mapping_`` vector is read only here at ago==0 -- to build that
+    // tensor and, for the edge/graph paths, to fold ghost neighbours onto their
+    // local owners inside ``createEdgeTensors``.  The edge and graph paths
+    // cache this topology at ago==0, so no ``mapping_`` read occurs on the
+    // per-step path.
+    if (lmp_list.mapping) {
+      mapping_.resize(nall_real);
+      for (int ii = 0; ii < nall_real; ii++) {
+        mapping_[ii] = fwd_map[lmp_list.mapping[bkw_map[ii]]];
+      }
+      mapping_tensor =
+          torch::from_blob(mapping_.data(), {1, nall_real}, int_option)
+              .clone()
+              .to(device);
+    } else {
+      // Identity fallback.  The fail-fasts above guarantee we only
+      // reach this branch when one of these is true:
+      //   - No real ghost exists, so the identity is the owner table.
+      //   - The topology keeps the extended node set (``!fold_to_local``)
+      //     and the model is non-message-passing, leaving this tensor
+      //     unread.
+      //   - ``use_with_comm`` is true (the with-comm graph fills ghost
+      //     features via border_op and ignores this tensor for ghost
+      //     gather — see deepmd/pt_expt/descriptor/
+      //     repflows.py::_exchange_ghosts).
+      mapping_.resize(nall_real);
+      for (int ii = 0; ii < nall_real; ii++) {
+        mapping_[ii] = ii;
+      }
+      mapping_tensor =
+          torch::from_blob(mapping_.data(), {1, nall_real}, int_option)
+              .clone()
+              .to(device);
+    }
+
+    if (lower_input_is_edge_) {
+      // Cache only the real skin topology.  The model-cutoff topology and
+      // model-input dummy edges are rebuilt on-device from current coordinates
+      // every step, so rcut-crossing skin atoms are handled without carrying
+      // out-of-cutoff edges into the exported graph.
+      //
+      // Multi-rank inference indexes the extended node set directly
+      // (``fold_to_local=false``): ghost neighbours stay as distinct nodes so
+      // their features can be exchanged across ranks via border_op, instead of
+      // being folded onto a local owner that this rank does not own.
+      const auto edge_tensors = createEdgeTensors(
+          nlist_data.jlist, dcoord, mapping_, nloc, nall_real, device,
+          /*with_geometry=*/false, /*row_centers=*/&nlist_data.ilist,
+          fold_to_local);
+      edge_index_tensor = edge_tensors.edge_index;
+      edge_index_ext_tensor = edge_tensors.edge_index_ext;
+    } else if (lower_input_is_graph_ || lower_input_is_canonical_) {
+      // Cache the skin topology destination-grouped. Single-rank folds ghosts
+      // onto local owners; non-message-passing multi-rank keeps the extended
+      // region so ghost forces reverse-comm to their owners.
+      skin_topology_ = deepmd::buildSkinTopology(
+          nlist_data.jlist, mapping_, nloc, nall_real,
+          /*node_count=*/multi_rank ? nall_real : nloc,
+          /*row_centers=*/&nlist_data.ilist, fold_to_local);
+    } else {
+      nlist_data.padding();
+      firstneigh_tensor = createNlistTensor(nlist_data.jlist, nnei)
+                              .to(torch::kInt64)
+                              .to(device);
+    }
+  }
+
+  // Build fparam/aparam tensors (cast to float64 for the model)
+  auto valuetype_options = std::is_same<VALUETYPE, float>::value
+                               ? torch::TensorOptions().dtype(torch::kFloat32)
+                               : torch::TensorOptions().dtype(torch::kFloat64);
+  at::Tensor fparam_tensor;
+  if (!fparam.empty()) {
+    fparam_tensor =
+        torch::from_blob(const_cast<VALUETYPE*>(fparam.data()),
+                         {1, static_cast<std::int64_t>(fparam.size())},
+                         valuetype_options)
+            .to(torch::kFloat64)
+            .to(device);
+  } else if (has_default_fparam_ && !default_fparam_.empty()) {
+    fparam_tensor =
+        torch::from_blob(const_cast<double*>(default_fparam_.data()),
+                         {1, static_cast<std::int64_t>(default_fparam_.size())},
+                         options)
+            .clone()
+            .to(device);
+  } else if (has_default_fparam_) {
+    throw deepmd::deepmd_exception(
+        "fparam is empty and default_fparam values are missing from the .pt2 "
+        "metadata. Please regenerate the model or provide fparam explicitly.");
+  } else {
+    fparam_tensor = torch::zeros({0}, options).to(device);
+  }
+
+  at::Tensor aparam_tensor = make_aparam_tensor(aparam_, nloc, daparam, device);
+
+  // Build charge_spin tensor: the condition supplied with the call when there
+  // is one, otherwise the state in force.
+  at::Tensor charge_spin_tensor;
+  if (dchgspin > 0) {
+    const std::vector<double>& condition =
+        charge_spin.empty() ? default_chg_spin_ : charge_spin;
+    if (condition.empty()) {
+      throw deepmd::deepmd_exception(
+          "charge_spin is empty and no default_chg_spin is available in the "
+          ".pt2 metadata. Provide charge_spin explicitly or regenerate the "
+          "model with a default charge/spin value.");
+    }
+    charge_spin_tensor =
+        torch::from_blob(const_cast<double*>(condition.data()), {1, dchgspin},
+                         torch::TensorOptions().dtype(torch::kFloat64))
+            .clone()
+            .to(device);
+  }
+
+  // ``use_with_comm`` was computed earlier alongside the fail-fast
+  // dispatch check.  Use the with-comm artifact for the multi-rank case
+  // (the regular artifact uses the mapping tensor to gather ghost
+  // embeddings, which only works in single-rank).
+  std::vector<torch::Tensor> flat_outputs;
+  if (use_with_comm && !with_comm_loader) {
+    throw deepmd::deepmd_exception(
+        "Multi-rank LAMMPS requires the with-comm artifact, but it failed "
+        "to load at init time. See the earlier stderr log for the underlying "
+        "error.");
+  }
+  // When NULL-type atoms exist, remapped storage must outlive comm
+  // tensors (the int** pointer-array tensor references it).
+  std::vector<std::vector<int>> remapped_sendlist;
+  std::vector<int*> remapped_sendlist_ptrs;
+  std::vector<int> remapped_sendnum, remapped_recvnum;
+  // Empty-subdomain padding keeps every rank inside the exported lower bounds
+  // and participating in communication. Two phantom local atoms and two masked
+  // self-edges contribute zero physical output. Setting comm ``nlocal`` to
+  // ``phantom_n`` makes
+  // border_op write received ghost features past the phantom slots, so
+  // collective communication stays in lockstep with non-empty ranks.
+  // Gated on ``use_with_comm`` so the strip-back below never touches outputs
+  // that the regular (non-comm) path produced without phantom padding.
+  int phantom_n = (use_with_comm && lower_input_is_edge_ && nloc == 0) ? 2 : 0;
+  if (use_with_comm) {
+    bool has_null_atoms = (nall_real < nall);
+    std::vector<at::Tensor> comm_tensors;
+    if (phantom_n > 0) {
+      // Empty rank: the phantom prefix shifts every node index by ``phantom_n``
+      // (received ghost features land at [phantom_n, nall)), so the forwarded
+      // send indices shift with it.  Build the send-list in the real-atom node
+      // space -- fwd_map remap when NULL-type atoms were filtered, raw LAMMPS
+      // indices otherwise -- then offset every entry by ``phantom_n``.  Without
+      // the offset border_op forwards the zeroed phantom slots instead of the
+      // relayed ghost features, corrupting neighbour ranks under subdomains
+      // small enough for an empty rank to relay (sendnum > 0).
+      if (has_null_atoms) {
+        deepmd::remap_comm_sendlist(remapped_sendlist, remapped_sendnum,
+                                    remapped_recvnum, lmp_list, fwd_map);
+      } else {
+        remapped_sendlist.resize(lmp_list.nswap);
+        remapped_sendnum.assign(lmp_list.sendnum,
+                                lmp_list.sendnum + lmp_list.nswap);
+        remapped_recvnum.assign(lmp_list.recvnum,
+                                lmp_list.recvnum + lmp_list.nswap);
+        for (int iswap = 0; iswap < lmp_list.nswap; ++iswap) {
+          remapped_sendlist[iswap].assign(
+              lmp_list.sendlist[iswap],
+              lmp_list.sendlist[iswap] + lmp_list.sendnum[iswap]);
+        }
+      }
+      remapped_sendlist_ptrs.resize(lmp_list.nswap);
+      for (int iswap = 0; iswap < lmp_list.nswap; ++iswap) {
+        for (int& idx : remapped_sendlist[iswap]) {
+          idx += phantom_n;
+        }
+        remapped_sendlist_ptrs[iswap] = remapped_sendlist[iswap].data();
+      }
+      comm_tensors = deepmd::ptexpt::build_comm_tensors_positional(
+          lmp_list, remapped_sendlist_ptrs.data(), remapped_sendnum.data(),
+          remapped_recvnum.data(), phantom_n, nghost_real);
+    } else if (has_null_atoms) {
+      comm_tensors =
+          deepmd::ptexpt::build_comm_tensors_positional_with_virtual_atoms(
+              lmp_list, fwd_map, nloc, nghost_real, remapped_sendlist,
+              remapped_sendlist_ptrs, remapped_sendnum, remapped_recvnum);
+    } else {
+      comm_tensors = deepmd::ptexpt::build_comm_tensors_positional(
+          lmp_list, lmp_list.sendlist, lmp_list.sendnum, lmp_list.recvnum, nloc,
+          nghost_real);
+    }
+    if (lower_input_is_edge_) {
+      if (phantom_n > 0) {
+        // Prepend ``phantom_n`` type-0 local atoms to the extended node set and
+        // supply two masked self-edges (edge_mask=false), so the graph runs at
+        // nloc>=2 / nedge>=2 with zero physical contribution.  Real ghost
+        // features still arrive via border_op at slots [phantom_n, nall); the
+        // phantom prefix is stripped from the outputs below.
+        const auto bool_option =
+            torch::TensorOptions().device(torch::kCPU).dtype(torch::kBool);
+        at::Tensor ph_coord = torch::cat(
+            {torch::zeros({1, phantom_n, 3}, options).to(device), coord_Tensor},
+            1);
+        at::Tensor ph_ext_atype = torch::cat(
+            {torch::zeros({1, phantom_n}, int_option).to(device), atype_Tensor},
+            1);
+        at::Tensor ph_loc_atype =
+            torch::zeros({1, phantom_n}, int_option).to(device);
+        at::Tensor ph_edge_index = torch::zeros({2, 2}, int_option).to(device);
+        at::Tensor ph_edge_vec = torch::zeros({2, 3}, options).to(device);
+        at::Tensor ph_edge_mask = torch::zeros({2}, bool_option).to(device);
+        at::Tensor ph_aparam =
+            (daparam > 0)
+                ? torch::zeros({1, phantom_n, daparam}, options).to(device)
+                : aparam_tensor;
+        flat_outputs = run_model_edges_with_comm(
+            ph_coord, ph_loc_atype, ph_ext_atype, ph_edge_index, ph_edge_vec,
+            ph_edge_index, ph_edge_mask, fparam_tensor, ph_aparam,
+            charge_spin_tensor, comm_tensors);
+      } else {
+        // Edge-input schema: edge_index already indexes the extended node set
+        // (fold_to_local=false above), so it doubles as the force-scatter
+        // index.  Ghost node features are exchanged between blocks inside the
+        // with-comm graph via border_op; the local atom types feed fitting
+        // while the extended types embed ghost neighbours.
+        const auto edge_tensors =
+            compactEdgeTensors(edge_index_tensor, edge_index_ext_tensor,
+                               coord_Tensor, static_cast<double>(rcut));
+        flat_outputs = run_model_edges_with_comm(
+            coord_Tensor, atype_Tensor.slice(1, 0, nloc), atype_Tensor,
+            edge_tensors.edge_index, edge_tensors.edge_vec,
+            edge_tensors.edge_index_ext, edge_tensors.edge_mask, fparam_tensor,
+            aparam_tensor, charge_spin_tensor, comm_tensors);
+      }
+    } else if (lower_input_is_graph_) {
+      // Message-passing NeighborGraph route (DPA2/DPA3), multi-rank, with-comm
+      // artifact.  Reachable only when the artifact-presence guard earlier in
+      // ``compute_impl`` passed (``has_comm_artifact_ && with_comm_loader``),
+      // which the export pipeline only sets for message-passing models, so
+      // ``use_with_comm`` implies ``has_message_passing_`` here -- non-MP
+      // graph models (dpa1) never carry a comm artifact and take the plain
+      // extended-region branch below instead.
+      //
+      // Topology construction mirrors the non-comm multi-rank graph branch
+      // below exactly (extended region, N == nall_real, node types from the
+      // on-device extended ``atype_Tensor`` slice): ghost nodes are distinct
+      // and their embeddings are filled in-place by ``border_op`` inside the
+      // with-comm artifact instead of being read directly from local ghost
+      // types, so no geometry/mask changes are needed -- only the model
+      // entry point (and the appended comm tensors) differ.
+      // Collective preflight: a rank with zero owned+ghost atoms cannot run
+      // the graph artifact, and a rank-LOCAL failure would leave the
+      // non-empty peers blocked forever in the per-layer border_op
+      // collectives.  All-reduce the minimum node count over the LAMMPS
+      // communicator (comm_tensors[5]) so EVERY rank agrees to run -- or
+      // every rank throws promptly with the same error.  The op is an
+      // identity when the communicator handle is null or MPI is not
+      // compiled in.
+      //
+      // Cached across ``ago > 0`` force calls: the owned+ghost node count
+      // shares the lifetime of the cached nlist/mapping/edge topology
+      // (both only change on an ``ago == 0`` rebuild, which is globally
+      // synchronized by LAMMPS), so re-running the collective on every
+      // cache-hit MD step added a global synchronization to the hot path
+      // with no added protection.
+      if (ago == 0 || !graph_comm_preflight_done_) {
+        graph_comm_preflight_done_ = false;
+        const auto allreduce_min =
+            c10::Dispatcher::singleton()
+                .findSchemaOrThrow("deepmd_export::allreduce_min_int", "")
+                .typed<at::Tensor(const at::Tensor&, const at::Tensor&)>();
+        at::Tensor local_n_node =
+            torch::full({1}, static_cast<std::int64_t>(nall_real), int_option);
+        const std::int64_t global_min_n_node =
+            allreduce_min.call(local_n_node, comm_tensors[5].to(torch::kCPU))
+                .item<std::int64_t>();
+        if (global_min_n_node == 0) {
+          throw deepmd::deepmd_exception(
+              "Multi-rank message-passing graph inference does not yet "
+              "support a rank with zero owned+ghost atoms (the exported "
+              "graph artifact requires at least one node, and skipping the "
+              "run would desync the per-layer MPI ghost exchange; this rank "
+              "has " +
+              std::to_string(nall_real) +
+              " owned+ghost atoms). Use a domain decomposition that keeps "
+              "every rank non-empty, or a dense .pt2.");
+        }
+        graph_comm_preflight_done_ = true;
+      }
+      const std::int64_t n_node_count = nall_real;
+      at::Tensor n_node_tensor =
+          torch::full({1}, n_node_count, int_option).to(device);
+      // Device owned-count input for the in-graph owned-node mask; the CPU
+      // nlocal comm tensor stays host-side for border_op.
+      at::Tensor n_local_tensor =
+          torch::full({1}, static_cast<std::int64_t>(nloc), int_option)
+              .to(device);
+      at::Tensor node_atype =
+          atype_Tensor.slice(1, 0, n_node_count).reshape({n_node_count});
+      // Model-level pair exclusion is a BUILD-time transform (decision
+      // #18/A4): the exported graph lower consumes a pre-excluded payload and
+      // never re-applies it -- same seam as the non-comm graph route, folded
+      // into the assembly predicate so an excluded edge is never allocated.
+      const at::Tensor host_atype =
+          node_atype.to(torch::kCPU).to(torch::kInt64).contiguous();
+      GraphTensorPack graph_pack = deepmd::assembleGraph(
+          skin_topology_, dcoord.data(),
+          host_atype.const_data_ptr<std::int64_t>(),
+          pair_exclude_host_.empty() ? nullptr : pair_exclude_host_.data(),
+          ntypes, static_cast<double>(rcut), graph_edge_fp32_,
+          /*with_source_csr=*/true, device, graph_scratch_);
+      graph_pack.atype = node_atype;
+      graph_pack.n_node = n_node_tensor;
+      graph_pack.n_local = n_local_tensor;
+      flat_outputs = run_model_graph_with_comm(
+          node_atype, n_node_tensor, n_local_tensor, graph_pack.edge_index,
+          graph_pack.edge_vec, graph_pack.edge_mask,
+          graph_pack.destination_order, graph_pack.destination_row_ptr,
+          graph_pack.source_order, graph_pack.source_row_ptr, fparam_tensor,
+          extend_graph_aparam(aparam_tensor, n_node_count, nloc, daparam),
+          charge_spin_tensor, comm_tensors);
+    } else {
+      // Model-level pair exclusion is a BUILD-time transform (decision
+      // #18/A4): the exported dense lower consumes a pre-excluded nlist and
+      // never re-applies it.  The multi-rank (with-comm) dense route shares the
+      // same dense nlist as the single-rank path below, so it applies the SAME
+      // seam -- otherwise a message-passing .pt2 with pair_exclude_types would
+      // silently include excluded pairs on the with-comm path (multi-rank !=
+      // single-rank).  The cross-rank ghost exchange happens inside
+      // run_model_with_comm and does not change the nlist's meaning, so
+      // pre-excluding it is correct per rank.
+      const at::Tensor excl_nlist = deepmd::applyPairExclusionNlist(
+          firstneigh_tensor, atype_Tensor, pair_exclude_table_, ntypes);
+      flat_outputs = run_model_with_comm(
+          coord_Tensor, atype_Tensor, excl_nlist, mapping_tensor, fparam_tensor,
+          aparam_tensor, charge_spin_tensor, comm_tensors);
+    }
+  } else {
+    if (lower_input_is_edge_) {
+      const auto edge_tensors =
+          compactEdgeTensors(edge_index_tensor, edge_index_ext_tensor,
+                             coord_Tensor, static_cast<double>(rcut));
+      flat_outputs =
+          run_model_edges(coord_Tensor, atype_Tensor.slice(1, 0, nloc),
+                          edge_tensors.edge_index, edge_tensors.edge_vec,
+                          edge_tensors.edge_index_ext, edge_tensors.edge_mask,
+                          fparam_tensor, aparam_tensor, charge_spin_tensor);
+    } else if (lower_input_is_graph_ || lower_input_is_canonical_) {
+      if (nall_real == 0) {
+        // Truly-empty rank (no local atoms AND no ghosts): the graph would emit
+        // N == 0 nodes, which violates the exported
+        // ``Dim("n_node_total", min=1)``. Such a rank contributes nothing, so
+        // fill zero outputs and return instead of running the model.  (The
+        // tested ``nloc == 0`` empty-subdomain case has ``nall_real > 0`` --
+        // ghosts within rcut -- so it still runs the model normally.)
+        ener.assign(nframes, static_cast<ENERGYTYPE>(0));
+        force.assign(static_cast<size_t>(nframes) * fwd_map.size() * 3,
+                     static_cast<VALUETYPE>(0));
+        virial.assign(static_cast<size_t>(nframes) * 9,
+                      static_cast<VALUETYPE>(0));
+        if (atomic) {
+          atom_energy.assign(static_cast<size_t>(nframes) * fwd_map.size(),
+                             static_cast<VALUETYPE>(0));
+          atom_virial.assign(static_cast<size_t>(nframes) * fwd_map.size() * 9,
+                             static_cast<VALUETYPE>(0));
+        }
+        return;
+      }
+      // Assemble the graph for the current geometry from the cached skin
+      // topology. Single-rank folds ghosts onto local owners (N == nloc);
+      // non-message-passing multi-rank keeps the extended region
+      // (N == nall_real) so reverse communication folds ghost forces back.
+      const std::int64_t n_node_count = multi_rank ? nall_real : nloc;
+      at::Tensor n_node_tensor =
+          torch::full({1}, n_node_count, int_option).to(device);
+      at::Tensor n_local_tensor = torch::full({1}, nloc, int_option).to(device);
+      at::Tensor node_atype =
+          atype_Tensor.slice(1, 0, n_node_count).reshape({n_node_count});
+      // Flat (N, daparam) graph ABI: validate the width, zero-pad ghost
+      // rows, and synthesize a zero tensor on a ghost-only rank (see
+      // extend_graph_aparam).
+      at::Tensor graph_aparam =
+          extend_graph_aparam(aparam_tensor, n_node_count, nloc, daparam);
+      const at::Tensor host_atype =
+          node_atype.to(torch::kCPU).to(torch::kInt64).contiguous();
+      GraphTensorPack graph_pack = deepmd::assembleGraph(
+          skin_topology_, dcoord.data(),
+          host_atype.const_data_ptr<std::int64_t>(),
+          pair_exclude_host_.empty() ? nullptr : pair_exclude_host_.data(),
+          ntypes, static_cast<double>(rcut), graph_edge_fp32_,
+          graph_reads_source_csr_ || lower_input_is_canonical_, device,
+          graph_scratch_);
+      graph_pack.atype = node_atype;
+      graph_pack.n_node = n_node_tensor;
+      graph_pack.n_local = n_local_tensor;
+      if (lower_input_is_canonical_) {
+        const auto compact = compactCanonicalGraph(graph_pack);
+        flat_outputs = run_model_canonical_graph(
+            compact.atype, compact.n_node, compact.n_local, compact.source,
+            compact.edge_vec, compact.destination_row_ptr,
+            compact.source_row_ptr, compact.source_order);
+      } else {
+        flat_outputs = run_model_graph(
+            node_atype, n_node_tensor, n_local_tensor, graph_pack.edge_index,
+            graph_pack.edge_vec, graph_pack.edge_mask,
+            graph_pack.destination_order, graph_pack.destination_row_ptr,
+            graph_pack.source_order, graph_pack.source_row_ptr, fparam_tensor,
+            graph_aparam, charge_spin_tensor);
+      }
+    } else {
+      // Model-level pair exclusion is a BUILD-time transform (decision
+      // #18/A4): the exported dense lower consumes a pre-excluded nlist and
+      // never re-applies it.  Single-rank dense application site; the
+      // multi-rank (with-comm) dense sibling above applies the same seam.
+      const at::Tensor excl_nlist = deepmd::applyPairExclusionNlist(
+          firstneigh_tensor, atype_Tensor, pair_exclude_table_, ntypes);
+      flat_outputs =
+          run_model(coord_Tensor, atype_Tensor, excl_nlist, mapping_tensor,
+                    fparam_tensor, aparam_tensor, charge_spin_tensor);
+    }
+  }
+
+  // Map flat outputs to internal keys
+  std::map<std::string, torch::Tensor> output_map;
+  extract_outputs(output_map, flat_outputs);
+
+  if (lower_input_is_graph_ || lower_input_is_canonical_) {
+    // The graph forward emits flat-N PUBLIC keys (atom_energy/energy/force/
+    // virial/atom_virial); rewrite them into the dense internal-key layout the
+    // downstream extraction/fold-back expects.
+    if (lower_input_is_canonical_) {
+      deepmd::flatten_canonical_atom_virial(output_map);
+    }
+    if (multi_rank) {
+      // Extended region (N == nall_real): force is already per-extended-atom,
+      // owned energy = sum over local atom energies, no zero-padding.  Ghost
+      // forces fold back via LAMMPS reverse-comm (both the plain and with-comm
+      // graph routes).
+      deepmd::remap_graph_outputs_to_dense_keys_extended(output_map, nloc,
+                                                         nall_real, atomic);
+    } else {
+      // Single-rank (N == nloc): ghosts folded onto owners; pad the per-atom
+      // force/virial up to nall_real with zero ghost rows.
+      deepmd::remap_graph_outputs_to_dense_keys(output_map, nloc, nall_real,
+                                                atomic, /*single_rank=*/true);
+    }
+  }
+
+  if (phantom_n > 0) {
+    // Strip the phantom local prefix and zero the empty rank's energy.  The
+    // phantom atoms carry no edges, so their force / per-atom virial are
+    // already zero and the global virial reduces to zero; only the per-type
+    // bias in energy_redu must be cleared so it does not enter the MPI-reduced
+    // total. After stripping, the extended force / atom virial regain their
+    // original (nf, nall_real, ...) extent and the local atom energy becomes
+    // empty, matching the real rank's nloc == 0.
+    output_map["energy_redu"] = torch::zeros_like(output_map["energy_redu"]);
+    output_map["energy_derv_r"] =
+        output_map["energy_derv_r"].slice(1, phantom_n).contiguous();
+    if (atomic) {
+      output_map["energy"] =
+          output_map["energy"].slice(1, phantom_n).contiguous();
+      output_map["energy_derv_c"] =
+          output_map["energy_derv_c"].slice(1, phantom_n).contiguous();
+    }
+  }
+
+  // Extract energy: energy_redu (nf, 1)
+  torch::Tensor flat_energy_ =
+      output_map["energy_redu"].view({-1}).to(torch::kCPU);
+  ener.assign(flat_energy_.data_ptr<ENERGYTYPE>(),
+              flat_energy_.data_ptr<ENERGYTYPE>() + flat_energy_.numel());
+
+  // Extract force: energy_derv_r (nf, nall, 1, 3) -> squeeze dim -2 -> (nf,
+  // nall, 3)
+  torch::Tensor force_tensor =
+      output_map["energy_derv_r"].squeeze(-2).view({-1}).to(floatType);
+  torch::Tensor cpu_force_ = force_tensor.to(torch::kCPU);
+  dforce.assign(cpu_force_.data_ptr<VALUETYPE>(),
+                cpu_force_.data_ptr<VALUETYPE>() + cpu_force_.numel());
+
+  // Extract virial: energy_derv_c_redu (nf, 1, 9) -> squeeze dim -2 -> (nf, 9)
+  torch::Tensor virial_tensor =
+      output_map["energy_derv_c_redu"].squeeze(-2).view({-1}).to(floatType);
+  torch::Tensor cpu_virial_ = virial_tensor.to(torch::kCPU);
+  virial.assign(cpu_virial_.data_ptr<VALUETYPE>(),
+                cpu_virial_.data_ptr<VALUETYPE>() + cpu_virial_.numel());
+
+  // bkw map: map force from real atoms back to full atom list (including
+  // NULL-type)
+  force.resize(static_cast<size_t>(nframes) * fwd_map.size() * 3);
+  select_map<VALUETYPE>(force, dforce, bkw_map, 3, nframes, fwd_map.size(),
+                        nall_real);
+
+  if (atomic) {
+    // Extract atom_energy: energy (nf, nloc, 1)
+    torch::Tensor atom_energy_tensor =
+        output_map["energy"].view({-1}).to(floatType);
+    torch::Tensor cpu_atom_energy_ = atom_energy_tensor.to(torch::kCPU);
+    datom_energy.resize(nall_real, 0.0);
+    datom_energy.assign(
+        cpu_atom_energy_.data_ptr<VALUETYPE>(),
+        cpu_atom_energy_.data_ptr<VALUETYPE>() + cpu_atom_energy_.numel());
+
+    // Extract atom_virial: energy_derv_c (nf, nall, 1, 9) -> squeeze dim -2 ->
+    // (nf, nall, 9)
+    torch::Tensor atom_virial_tensor =
+        output_map["energy_derv_c"].squeeze(-2).view({-1}).to(floatType);
+    torch::Tensor cpu_atom_virial_ = atom_virial_tensor.to(torch::kCPU);
+    datom_virial.assign(
+        cpu_atom_virial_.data_ptr<VALUETYPE>(),
+        cpu_atom_virial_.data_ptr<VALUETYPE>() + cpu_atom_virial_.numel());
+
+    atom_energy.resize(static_cast<size_t>(nframes) * fwd_map.size());
+    atom_virial.resize(static_cast<size_t>(nframes) * fwd_map.size() * 9);
+    select_map<VALUETYPE>(atom_energy, datom_energy, bkw_map, 1, nframes,
+                          fwd_map.size(), nall_real);
+    select_map<VALUETYPE>(atom_virial, datom_virial, bkw_map, 9, nframes,
+                          fwd_map.size(), nall_real);
+  }
+}
+
+template void DeepPotPTExpt::compute<double, std::vector<ENERGYTYPE>>(
+    std::vector<ENERGYTYPE>& ener,
+    std::vector<double>& force,
+    std::vector<double>& virial,
+    std::vector<double>& atom_energy,
+    std::vector<double>& atom_virial,
+    const std::vector<double>& coord,
+    const std::vector<int>& atype,
+    const std::vector<double>& box,
+    const int nghost,
+    const InputNlist& lmp_list,
+    const int& ago,
+    const std::vector<double>& fparam,
+    const std::vector<double>& aparam,
+    const std::vector<double>& charge_spin,
+    const bool atomic);
+template void DeepPotPTExpt::compute<float, std::vector<ENERGYTYPE>>(
+    std::vector<ENERGYTYPE>& ener,
+    std::vector<float>& force,
+    std::vector<float>& virial,
+    std::vector<float>& atom_energy,
+    std::vector<float>& atom_virial,
+    const std::vector<float>& coord,
+    const std::vector<int>& atype,
+    const std::vector<float>& box,
+    const int nghost,
+    const InputNlist& lmp_list,
+    const int& ago,
+    const std::vector<float>& fparam,
+    const std::vector<float>& aparam,
+    const std::vector<double>& charge_spin,
+    const bool atomic);
+
+template <typename VALUETYPE, typename ENERGYVTYPE>
+void DeepPotPTExpt::compute(ENERGYVTYPE& ener,
+                            std::vector<VALUETYPE>& force,
+                            std::vector<VALUETYPE>& virial,
+                            std::vector<VALUETYPE>& atom_energy,
+                            std::vector<VALUETYPE>& atom_virial,
+                            const std::vector<VALUETYPE>& coord,
+                            const std::vector<int>& atype,
+                            const std::vector<VALUETYPE>& box,
+                            const std::vector<VALUETYPE>& fparam,
+                            const std::vector<VALUETYPE>& aparam,
+                            const std::vector<double>& charge_spin,
+                            const bool atomic) {
+  // Fail fast before allocating any tensors (same check as the nlist
+  // overload — see its comment).
+  if (atomic && !do_atomic_virial) {
+    throw deepmd::deepmd_exception(
+        "Atomic virial was requested (e.g. by LAMMPS compute */atom/virial) "
+        "but this .pt2 model was exported without it (metadata field "
+        "do_atomic_virial=False). Atomic virial adds ~2.5x inference cost "
+        "and is off by default for .pt2. To enable it, regenerate with: "
+        "dp convert-backend --atomic-virial INPUT.pth OUTPUT.pt2");
+  }
+  int natoms = atype.size();
+  if (natoms == 0) {
+    throw deepmd::deepmd_exception(
+        "The coordinate-based inference interface requires at least one atom.");
+  }
+  const std::size_t frame_coord_size = static_cast<std::size_t>(natoms) * 3;
+  if (coord.empty() || coord.size() % frame_coord_size != 0) {
+    throw deepmd::deepmd_exception(
+        "coord size must equal nframes * natoms * 3 with nframes >= 1.");
+  }
+  int nframes = static_cast<int>(coord.size() / frame_coord_size);
+  if (nframes > 1) {
+    // Multi-frame: loop over frames and concatenate
+    compute_nframes(ener, force, virial, atom_energy, atom_virial, nframes,
+                    coord, atype, box, fparam, aparam, charge_spin, atomic);
+    return;
+  }
+  // A single-frame call names at most one charge state, and only one this
+  // model can serve.
+  check_call_charge_spin(charge_spin, /*nframes=*/1, settable_chgspin,
+                         dchgspin > 0, default_chg_spin_,
+                         chg_spin_table_ranges_);
+  // The .pt2 model only contains forward_common_lower, which requires
+  // nlist as input. We must build the nlist in C++ and fold back the
+  // extended-region outputs to local atoms.
+  torch::Device device(torch::kCUDA, gpu_id);
+  if (!gpu_enabled) {
+    device = torch::Device(torch::kCPU);
+  }
+
+  // Always use float64 for model inputs — the .pt2 model is compiled with
+  // float64 and AOTInductor does not auto-cast.
+  auto options = torch::TensorOptions().dtype(torch::kFloat64);
+  torch::ScalarType floatType = torch::kFloat64;
+  if (std::is_same<VALUETYPE, float>::value) {
+    floatType = torch::kFloat32;
+  }
+  auto int_options = torch::TensorOptions().dtype(torch::kInt64);
+
+  // 1. Handle box: if empty (NoPbc), create a fake box large enough
+  std::vector<double> coord_d(coord.begin(), coord.end());
+  std::vector<double> box_d(box.begin(), box.end());
+  if (box_d.empty()) {
+    // Create a fake orthorhombic box that contains all atoms with margin
+    double min_x = coord_d[0], max_x = coord_d[0];
+    double min_y = coord_d[1], max_y = coord_d[1];
+    double min_z = coord_d[2], max_z = coord_d[2];
+    for (int ii = 1; ii < natoms; ++ii) {
+      min_x = std::min(min_x, coord_d[ii * 3 + 0]);
+      max_x = std::max(max_x, coord_d[ii * 3 + 0]);
+      min_y = std::min(min_y, coord_d[ii * 3 + 1]);
+      max_y = std::max(max_y, coord_d[ii * 3 + 1]);
+      min_z = std::min(min_z, coord_d[ii * 3 + 2]);
+      max_z = std::max(max_z, coord_d[ii * 3 + 2]);
+    }
+    // Shift coords so minimum is at rcut (ensures all atoms are in [0, L))
+    double shift_x = rcut - min_x;
+    double shift_y = rcut - min_y;
+    double shift_z = rcut - min_z;
+    for (int ii = 0; ii < natoms; ++ii) {
+      coord_d[ii * 3 + 0] += shift_x;
+      coord_d[ii * 3 + 1] += shift_y;
+      coord_d[ii * 3 + 2] += shift_z;
+    }
+    box_d.resize(9, 0.0);
+    box_d[0] = (max_x - min_x) + 2.0 * rcut;
+    box_d[4] = (max_y - min_y) + 2.0 * rcut;
+    box_d[8] = (max_z - min_z) + 2.0 * rcut;
+  }
+
+  // 2. Extend coords with ghosts
+  std::vector<double> coord_cpy_d;
+  std::vector<int> atype_cpy, mapping_vec;
+  std::vector<int> ncell, ngcell;
+  {
+    SimulationRegion<double> region;
+    region.reinitBox(&box_d[0]);
+    copy_coord(coord_cpy_d, atype_cpy, mapping_vec, ncell, ngcell, coord_d,
+               atype, static_cast<float>(rcut), region);
+  }
+
+  int nloc = natoms;
+  int nall = coord_cpy_d.size() / 3;
+
+  // 3. Build neighbor list on extended coords
+  std::vector<std::vector<int>> nlist_raw, nlist_r_cpy;
+  {
+    SimulationRegion<double> region;
+    region.reinitBox(&box_d[0]);
+    std::vector<int> nat_stt(3, 0), ext_stt(3), ext_end(3);
+    for (int dd = 0; dd < 3; ++dd) {
+      ext_stt[dd] = -ngcell[dd];
+      ext_end[dd] = ncell[dd] + ngcell[dd];
+    }
+    build_nlist(nlist_raw, nlist_r_cpy, coord_cpy_d, nloc, rcut, rcut, nat_stt,
+                ncell, ext_stt, ext_end, region, ncell);
+  }
+
+  // 4. Convert to tensors (always float64 for .pt2 model)
+  // NOTE: must .clone() because from_blob does not copy data, and the local
+  // vectors would go out of scope before run_model completes.
+  at::Tensor coord_Tensor =
+      torch::from_blob(coord_cpy_d.data(), {1, nall, 3}, options)
+          .clone()
+          .to(device);
+  std::vector<std::int64_t> atype_64(atype_cpy.begin(), atype_cpy.end());
+  at::Tensor atype_Tensor =
+      torch::from_blob(atype_64.data(), {1, nall}, int_options)
+          .clone()
+          .to(device);
+  std::vector<std::int64_t> mapping_64(mapping_vec.begin(), mapping_vec.end());
+  at::Tensor mapping_tensor =
+      torch::from_blob(mapping_64.data(), {1, nall}, int_options)
+          .clone()
+          .to(device);
+  at::Tensor nlist_tensor;
+  EdgeTensorPack edge_tensors;
+  GraphTensorPack graph_tensors;
+  if (lower_input_is_edge_) {
+    edge_tensors = createEdgeTensors(nlist_raw, coord_cpy_d, mapping_64, nloc,
+                                     nall, device);
+  } else if (lower_input_is_graph_ || lower_input_is_canonical_) {
+    // Standalone (no nlist) graph schema: build_nlist already cut at rcut and
+    // keys row i to center i, so no row_centers remapping is needed.
+    graph_tensors =
+        buildGraphTensors(nlist_raw, coord_cpy_d, atype_cpy, mapping_64, nloc,
+                          nall, static_cast<double>(rcut), device);
+  } else {
+    nlist_tensor =
+        createNlistTensor(nlist_raw, nnei).to(torch::kInt64).to(device);
+  }
+
+  // Build fparam/aparam tensors (cast to float64 for the model)
+  auto valuetype_options = std::is_same<VALUETYPE, float>::value
+                               ? torch::TensorOptions().dtype(torch::kFloat32)
+                               : torch::TensorOptions().dtype(torch::kFloat64);
+  at::Tensor fparam_tensor;
+  if (!fparam.empty()) {
+    fparam_tensor =
+        torch::from_blob(const_cast<VALUETYPE*>(fparam.data()),
+                         {1, static_cast<std::int64_t>(fparam.size())},
+                         valuetype_options)
+            .to(torch::kFloat64)
+            .to(device);
+  } else if (has_default_fparam_ && !default_fparam_.empty()) {
+    fparam_tensor =
+        torch::from_blob(const_cast<double*>(default_fparam_.data()),
+                         {1, static_cast<std::int64_t>(default_fparam_.size())},
+                         options)
+            .clone()
+            .to(device);
+  } else if (has_default_fparam_) {
+    throw deepmd::deepmd_exception(
+        "fparam is empty and default_fparam values are missing from the .pt2 "
+        "metadata. Please regenerate the model or provide fparam explicitly.");
+  } else {
+    fparam_tensor = torch::zeros({0}, options).to(device);
+  }
+
+  at::Tensor aparam_tensor =
+      make_aparam_tensor(aparam, natoms, daparam, device);
+
+  // Build charge_spin tensor: the condition supplied with the call when there
+  // is one, otherwise the state in force.
+  at::Tensor charge_spin_tensor;
+  if (dchgspin > 0) {
+    const std::vector<double>& condition =
+        charge_spin.empty() ? default_chg_spin_ : charge_spin;
+    if (condition.empty()) {
+      throw deepmd::deepmd_exception(
+          "charge_spin is empty and no default_chg_spin is available in the "
+          ".pt2 metadata. Provide charge_spin explicitly or regenerate the "
+          "model with a default charge/spin value.");
+    }
+    charge_spin_tensor =
+        torch::from_blob(const_cast<double*>(condition.data()), {1, dchgspin},
+                         torch::TensorOptions().dtype(torch::kFloat64))
+            .clone()
+            .to(device);
+  }
+
+  // 5. Run the .pt2 model
+  std::vector<torch::Tensor> flat_outputs;
+  if (lower_input_is_edge_) {
+    flat_outputs =
+        run_model_edges(coord_Tensor, atype_Tensor.slice(1, 0, nloc),
+                        edge_tensors.edge_index, edge_tensors.edge_vec,
+                        edge_tensors.edge_index_ext, edge_tensors.edge_mask,
+                        fparam_tensor, aparam_tensor, charge_spin_tensor);
+  } else if (lower_input_is_graph_ || lower_input_is_canonical_) {
+    graph_tensors.edge_mask = deepmd::applyPairExclusion(
+        graph_tensors.edge_index, graph_tensors.edge_mask, graph_tensors.atype,
+        pair_exclude_table_, ntypes);
+    canonicalizeGraphPayload(graph_tensors, graph_tensors.atype.size(0));
+    if (graph_edge_fp32_) {
+      graph_tensors.edge_vec = graph_tensors.edge_vec.to(torch::kFloat32);
+    }
+    if (lower_input_is_canonical_) {
+      const auto compact = compactCanonicalGraph(graph_tensors);
+      flat_outputs = run_model_canonical_graph(
+          compact.atype, compact.n_node, compact.n_local, compact.source,
+          compact.edge_vec, compact.destination_row_ptr, compact.source_row_ptr,
+          compact.source_order);
+    } else {
+      flat_outputs = run_model_graph(
+          graph_tensors.atype, graph_tensors.n_node, graph_tensors.n_local,
+          graph_tensors.edge_index, graph_tensors.edge_vec,
+          graph_tensors.edge_mask, graph_tensors.destination_order,
+          graph_tensors.destination_row_ptr, graph_tensors.source_order,
+          graph_tensors.source_row_ptr, fparam_tensor,
+          // standalone path is single-rank (every node owned): this only
+          // normalizes the rectangular runtime aparam to the flat
+          // (N, daparam) node axis of the graph ABI.
+          extend_graph_aparam(aparam_tensor, natoms, natoms, daparam),
+          charge_spin_tensor);
+    }
+  } else {
+    // Model-level pair exclusion is a BUILD-time transform (decision
+    // #18/A4): the exported dense lower consumes a pre-excluded nlist and
+    // never re-applies it; this is the single application site on the C++
+    // dense route.
+    const at::Tensor excl_nlist = deepmd::applyPairExclusionNlist(
+        nlist_tensor, atype_Tensor, pair_exclude_table_, ntypes);
+    flat_outputs =
+        run_model(coord_Tensor, atype_Tensor, excl_nlist, mapping_tensor,
+                  fparam_tensor, aparam_tensor, charge_spin_tensor);
+  }
+
+  // 6. Map flat outputs to internal keys
+  std::map<std::string, torch::Tensor> output_map;
+  extract_outputs(output_map, flat_outputs);
+
+  if (lower_input_is_graph_ || lower_input_is_canonical_) {
+    // The graph forward emits LOCAL public keys; rewrite them into the dense
+    // internal-key layout used below.  nloc == N (graph node count); pad the
+    // per-atom force/virial up to the extended nall with zero ghost rows so the
+    // fold-back is a no-op on ghosts.
+    // single_rank=true: the standalone (build_nlist) path is always
+    // single-rank; there is no comm_dict / cross-rank ghost exchange here.
+    if (lower_input_is_canonical_) {
+      deepmd::flatten_canonical_atom_virial(output_map);
+    }
+    deepmd::remap_graph_outputs_to_dense_keys(output_map, nloc, nall, atomic,
+                                              /*single_rank=*/true);
+  }
+
+  // 7. Extract energy
+  torch::Tensor flat_energy_ =
+      output_map["energy_redu"].view({-1}).to(torch::kCPU);
+  ener.assign(flat_energy_.data_ptr<ENERGYTYPE>(),
+              flat_energy_.data_ptr<ENERGYTYPE>() + flat_energy_.numel());
+
+  // 8. Extract virial: energy_derv_c_redu (nf, 1, 9) -> (nf, 9)
+  torch::Tensor virial_tensor =
+      output_map["energy_derv_c_redu"].squeeze(-2).view({-1}).to(floatType);
+  torch::Tensor cpu_virial_ = virial_tensor.to(torch::kCPU);
+  virial.assign(cpu_virial_.data_ptr<VALUETYPE>(),
+                cpu_virial_.data_ptr<VALUETYPE>() + cpu_virial_.numel());
+
+  // 9. Extract force and fold back: energy_derv_r (nf, nall, 1, 3) -> (nf,
+  // nall, 3)
+  torch::Tensor force_ext =
+      output_map["energy_derv_r"].squeeze(-2).view({-1}).to(floatType);
+  torch::Tensor cpu_force_ext = force_ext.to(torch::kCPU);
+  std::vector<VALUETYPE> extended_force(
+      cpu_force_ext.data_ptr<VALUETYPE>(),
+      cpu_force_ext.data_ptr<VALUETYPE>() + cpu_force_ext.numel());
+  fold_back(force, extended_force, mapping_vec, nloc, nall, 3, nframes);
+
+  if (atomic) {
+    // atom_energy: energy (nf, nloc, 1) — already on local atoms
+    torch::Tensor atom_energy_tensor =
+        output_map["energy"].view({-1}).to(floatType);
+    torch::Tensor cpu_atom_energy_ = atom_energy_tensor.to(torch::kCPU);
+    atom_energy.assign(
+        cpu_atom_energy_.data_ptr<VALUETYPE>(),
+        cpu_atom_energy_.data_ptr<VALUETYPE>() + cpu_atom_energy_.numel());
+
+    // atom_virial: energy_derv_c (nf, nall, 1, 9) -> (nf, nall, 9)
+    // fold back to local atoms
+    torch::Tensor atom_virial_ext =
+        output_map["energy_derv_c"].squeeze(-2).view({-1}).to(floatType);
+    torch::Tensor cpu_atom_virial_ext = atom_virial_ext.to(torch::kCPU);
+    std::vector<VALUETYPE> extended_atom_virial(
+        cpu_atom_virial_ext.data_ptr<VALUETYPE>(),
+        cpu_atom_virial_ext.data_ptr<VALUETYPE>() +
+            cpu_atom_virial_ext.numel());
+    fold_back(atom_virial, extended_atom_virial, mapping_vec, nloc, nall, 9,
+              nframes);
+  }
+}
+
+template <typename VALUETYPE, typename ENERGYVTYPE>
+void DeepPotPTExpt::compute_nframes(ENERGYVTYPE& ener,
+                                    std::vector<VALUETYPE>& force,
+                                    std::vector<VALUETYPE>& virial,
+                                    std::vector<VALUETYPE>& atom_energy,
+                                    std::vector<VALUETYPE>& atom_virial,
+                                    const int nframes,
+                                    const std::vector<VALUETYPE>& coord,
+                                    const std::vector<int>& atype,
+                                    const std::vector<VALUETYPE>& box,
+                                    const std::vector<VALUETYPE>& fparam,
+                                    const std::vector<VALUETYPE>& aparam,
+                                    const std::vector<double>& charge_spin,
+                                    const bool atomic) {
+  int natoms = atype.size();
+  if (nframes <= 0 || natoms <= 0) {
+    throw deepmd::deepmd_exception(
+        "Multi-frame inference requires nframes >= 1 and natoms >= 1.");
+  }
+  const FrameParameterLayout aparam_layout = resolve_frame_parameter_layout(
+      "aparam", aparam.size(), nframes,
+      static_cast<std::size_t>(natoms) * daparam, false);
+  const FrameParameterLayout fparam_layout = resolve_frame_parameter_layout(
+      "fparam", fparam.size(), nframes, dfparam, true);
+  // charge_spin may be empty (the state in force), one charge state
+  // (broadcast to every frame), or one per frame. Reject anything else up
+  // front to avoid out-of-range slicing in the loop.
+  check_call_charge_spin(charge_spin, nframes, settable_chgspin, dchgspin > 0,
+                         default_chg_spin_, chg_spin_table_ranges_);
+  ener.clear();
+  force.clear();
+  virial.clear();
+  if (atomic) {
+    atom_energy.clear();
+    atom_virial.clear();
+  }
+  for (int ff = 0; ff < nframes; ++ff) {
+    size_t s_ff = static_cast<size_t>(ff);
+    size_t s_natoms = static_cast<size_t>(natoms);
+    std::vector<VALUETYPE> frame_coord(
+        coord.begin() + s_ff * s_natoms * 3,
+        coord.begin() + (s_ff + 1) * s_natoms * 3);
+    std::vector<VALUETYPE> frame_box;
+    if (!box.empty()) {
+      frame_box.assign(box.begin() + s_ff * 9, box.begin() + (s_ff + 1) * 9);
+    }
+    std::vector<VALUETYPE> frame_fparam;
+    if (fparam_layout.frame_size > 0) {
+      const std::size_t offset =
+          fparam_layout.broadcast ? 0 : s_ff * fparam_layout.frame_size;
+      frame_fparam.assign(fparam.begin() + offset,
+                          fparam.begin() + offset + fparam_layout.frame_size);
+    }
+    std::vector<VALUETYPE> frame_aparam;
+    if (aparam_layout.frame_size > 0) {
+      const std::size_t offset =
+          aparam_layout.broadcast ? 0 : s_ff * aparam_layout.frame_size;
+      frame_aparam.assign(aparam.begin() + offset,
+                          aparam.begin() + offset + aparam_layout.frame_size);
+    }
+    std::vector<double> frame_chg_spin;
+    if (!charge_spin.empty()) {
+      size_t s_dcsp = static_cast<size_t>(settable_chgspin);
+      if (charge_spin.size() == s_dcsp) {
+        // one charge state broadcast to every frame
+        frame_chg_spin = charge_spin;
+      } else {
+        frame_chg_spin.assign(charge_spin.begin() + s_ff * s_dcsp,
+                              charge_spin.begin() + (s_ff + 1) * s_dcsp);
+      }
+    }
+    std::vector<ENERGYTYPE> frame_ener;
+    std::vector<VALUETYPE> frame_force, frame_virial, frame_ae, frame_av;
+    compute(frame_ener, frame_force, frame_virial, frame_ae, frame_av,
+            frame_coord, atype, frame_box, frame_fparam, frame_aparam,
+            frame_chg_spin, atomic);
+    ener.insert(ener.end(), frame_ener.begin(), frame_ener.end());
+    force.insert(force.end(), frame_force.begin(), frame_force.end());
+    virial.insert(virial.end(), frame_virial.begin(), frame_virial.end());
+    if (atomic) {
+      atom_energy.insert(atom_energy.end(), frame_ae.begin(), frame_ae.end());
+      atom_virial.insert(atom_virial.end(), frame_av.begin(), frame_av.end());
+    }
+  }
+}
+
+template void DeepPotPTExpt::compute<double, std::vector<ENERGYTYPE>>(
+    std::vector<ENERGYTYPE>& ener,
+    std::vector<double>& force,
+    std::vector<double>& virial,
+    std::vector<double>& atom_energy,
+    std::vector<double>& atom_virial,
+    const std::vector<double>& coord,
+    const std::vector<int>& atype,
+    const std::vector<double>& box,
+    const std::vector<double>& fparam,
+    const std::vector<double>& aparam,
+    const std::vector<double>& charge_spin,
+    const bool atomic);
+template void DeepPotPTExpt::compute<float, std::vector<ENERGYTYPE>>(
+    std::vector<ENERGYTYPE>& ener,
+    std::vector<float>& force,
+    std::vector<float>& virial,
+    std::vector<float>& atom_energy,
+    std::vector<float>& atom_virial,
+    const std::vector<float>& coord,
+    const std::vector<int>& atype,
+    const std::vector<float>& box,
+    const std::vector<float>& fparam,
+    const std::vector<float>& aparam,
+    const std::vector<double>& charge_spin,
+    const bool atomic);
+
+void DeepPotPTExpt::get_type_map(std::string& type_map_str) {
+  type_map_str.clear();
+  for (const auto& t : type_map) {
+    if (!type_map_str.empty()) {
+      type_map_str += " ";
+    }
+    type_map_str += t;
+  }
+}
+
+// forward to template method (no runtime charge_spin — uses default_chg_spin_)
+void DeepPotPTExpt::computew(std::vector<double>& ener,
+                             std::vector<double>& force,
+                             std::vector<double>& virial,
+                             std::vector<double>& atom_energy,
+                             std::vector<double>& atom_virial,
+                             const std::vector<double>& coord,
+                             const std::vector<int>& atype,
+                             const std::vector<double>& box,
+                             const std::vector<double>& fparam,
+                             const std::vector<double>& aparam,
+                             const bool atomic) {
+  translate_error([&] {
+    compute(ener, force, virial, atom_energy, atom_virial, coord, atype, box,
+            fparam, aparam, {}, atomic);
+  });
+}
+void DeepPotPTExpt::computew(std::vector<double>& ener,
+                             std::vector<float>& force,
+                             std::vector<float>& virial,
+                             std::vector<float>& atom_energy,
+                             std::vector<float>& atom_virial,
+                             const std::vector<float>& coord,
+                             const std::vector<int>& atype,
+                             const std::vector<float>& box,
+                             const std::vector<float>& fparam,
+                             const std::vector<float>& aparam,
+                             const bool atomic) {
+  translate_error([&] {
+    compute(ener, force, virial, atom_energy, atom_virial, coord, atype, box,
+            fparam, aparam, {}, atomic);
+  });
+}
+void DeepPotPTExpt::computew(std::vector<double>& ener,
+                             std::vector<double>& force,
+                             std::vector<double>& virial,
+                             std::vector<double>& atom_energy,
+                             std::vector<double>& atom_virial,
+                             const std::vector<double>& coord,
+                             const std::vector<int>& atype,
+                             const std::vector<double>& box,
+                             const int nghost,
+                             const InputNlist& inlist,
+                             const int& ago,
+                             const std::vector<double>& fparam,
+                             const std::vector<double>& aparam,
+                             const bool atomic) {
+  translate_error([&] {
+    compute(ener, force, virial, atom_energy, atom_virial, coord, atype, box,
+            nghost, inlist, ago, fparam, aparam, {}, atomic);
+  });
+}
+void DeepPotPTExpt::computew(std::vector<double>& ener,
+                             std::vector<float>& force,
+                             std::vector<float>& virial,
+                             std::vector<float>& atom_energy,
+                             std::vector<float>& atom_virial,
+                             const std::vector<float>& coord,
+                             const std::vector<int>& atype,
+                             const std::vector<float>& box,
+                             const int nghost,
+                             const InputNlist& inlist,
+                             const int& ago,
+                             const std::vector<float>& fparam,
+                             const std::vector<float>& aparam,
+                             const bool atomic) {
+  translate_error([&] {
+    compute(ener, force, virial, atom_energy, atom_virial, coord, atype, box,
+            nghost, inlist, ago, fparam, aparam, {}, atomic);
+  });
+}
+template <typename VALUETYPE>
+void DeepPotPTExpt::compute_mixed_type_impl(
+    std::vector<double>& ener,
+    std::vector<VALUETYPE>& force,
+    std::vector<VALUETYPE>& virial,
+    std::vector<VALUETYPE>& atom_energy,
+    std::vector<VALUETYPE>& atom_virial,
+    const int& nframes,
+    const std::vector<VALUETYPE>& coord,
+    const std::vector<int>& atype,
+    const std::vector<VALUETYPE>& box,
+    const std::vector<VALUETYPE>& fparam,
+    const std::vector<VALUETYPE>& aparam,
+    const std::vector<double>& charge_spin,
+    const bool atomic) {
+  // Mixed-type: atype has nframes * natoms elements.
+  // Loop over frames, each with its own atype slice.
+  if (nframes <= 0 || atype.empty() ||
+      atype.size() % static_cast<std::size_t>(nframes) != 0) {
+    throw deepmd::deepmd_exception(
+        "Mixed-type inference requires nframes >= 1, natoms >= 1, and "
+        "atype.size() == nframes * natoms.");
+  }
+  int natoms = static_cast<int>(atype.size()) / nframes;
+  if (coord.size() != static_cast<std::size_t>(nframes) *
+                          static_cast<std::size_t>(natoms) * 3) {
+    throw deepmd::deepmd_exception(
+        "coord size must equal nframes * natoms * 3.");
+  }
+  const FrameParameterLayout aparam_layout = resolve_frame_parameter_layout(
+      "aparam", aparam.size(), nframes,
+      static_cast<std::size_t>(natoms) * daparam, false);
+  const FrameParameterLayout fparam_layout = resolve_frame_parameter_layout(
+      "fparam", fparam.size(), nframes, dfparam, true);
+  // charge_spin may be empty (the state in force), one charge state
+  // (broadcast to every frame), or one per frame. Reject anything else up
+  // front to avoid out-of-range slicing in the loop.
+  check_call_charge_spin(charge_spin, nframes, settable_chgspin, dchgspin > 0,
+                         default_chg_spin_, chg_spin_table_ranges_);
+  ener.clear();
+  force.clear();
+  virial.clear();
+  if (atomic) {
+    atom_energy.clear();
+    atom_virial.clear();
+  }
+  for (int ff = 0; ff < nframes; ++ff) {
+    size_t s_ff = static_cast<size_t>(ff);
+    size_t s_natoms = static_cast<size_t>(natoms);
+    std::vector<VALUETYPE> frame_coord(
+        coord.begin() + s_ff * s_natoms * 3,
+        coord.begin() + (s_ff + 1) * s_natoms * 3);
+    std::vector<int> frame_atype(atype.begin() + s_ff * s_natoms,
+                                 atype.begin() + (s_ff + 1) * s_natoms);
+    std::vector<VALUETYPE> frame_box;
+    if (!box.empty()) {
+      frame_box.assign(box.begin() + s_ff * 9, box.begin() + (s_ff + 1) * 9);
+    }
+    std::vector<VALUETYPE> frame_fparam;
+    if (fparam_layout.frame_size > 0) {
+      const std::size_t offset =
+          fparam_layout.broadcast ? 0 : s_ff * fparam_layout.frame_size;
+      frame_fparam.assign(fparam.begin() + offset,
+                          fparam.begin() + offset + fparam_layout.frame_size);
+    }
+    std::vector<VALUETYPE> frame_aparam;
+    if (aparam_layout.frame_size > 0) {
+      const std::size_t offset =
+          aparam_layout.broadcast ? 0 : s_ff * aparam_layout.frame_size;
+      frame_aparam.assign(aparam.begin() + offset,
+                          aparam.begin() + offset + aparam_layout.frame_size);
+    }
+    std::vector<double> frame_chg_spin;
+    if (!charge_spin.empty()) {
+      size_t s_dcsp = static_cast<size_t>(settable_chgspin);
+      if (charge_spin.size() == s_dcsp) {
+        // one charge state broadcast to every frame
+        frame_chg_spin = charge_spin;
+      } else {
+        frame_chg_spin.assign(charge_spin.begin() + s_ff * s_dcsp,
+                              charge_spin.begin() + (s_ff + 1) * s_dcsp);
+      }
+    }
+    std::vector<ENERGYTYPE> frame_ener;
+    std::vector<VALUETYPE> frame_force, frame_virial, frame_ae, frame_av;
+    compute(frame_ener, frame_force, frame_virial, frame_ae, frame_av,
+            frame_coord, frame_atype, frame_box, frame_fparam, frame_aparam,
+            frame_chg_spin, atomic);
+    ener.insert(ener.end(), frame_ener.begin(), frame_ener.end());
+    force.insert(force.end(), frame_force.begin(), frame_force.end());
+    virial.insert(virial.end(), frame_virial.begin(), frame_virial.end());
+    if (atomic) {
+      atom_energy.insert(atom_energy.end(), frame_ae.begin(), frame_ae.end());
+      atom_virial.insert(atom_virial.end(), frame_av.begin(), frame_av.end());
+    }
+  }
+}
+
+void DeepPotPTExpt::computew_mixed_type(std::vector<double>& ener,
+                                        std::vector<double>& force,
+                                        std::vector<double>& virial,
+                                        std::vector<double>& atom_energy,
+                                        std::vector<double>& atom_virial,
+                                        const int& nframes,
+                                        const std::vector<double>& coord,
+                                        const std::vector<int>& atype,
+                                        const std::vector<double>& box,
+                                        const std::vector<double>& fparam,
+                                        const std::vector<double>& aparam,
+                                        const bool atomic) {
+  translate_error([&] {
+    compute_mixed_type_impl(ener, force, virial, atom_energy, atom_virial,
+                            nframes, coord, atype, box, fparam, aparam, {},
+                            atomic);
+  });
+}
+void DeepPotPTExpt::computew_mixed_type(std::vector<double>& ener,
+                                        std::vector<float>& force,
+                                        std::vector<float>& virial,
+                                        std::vector<float>& atom_energy,
+                                        std::vector<float>& atom_virial,
+                                        const int& nframes,
+                                        const std::vector<float>& coord,
+                                        const std::vector<int>& atype,
+                                        const std::vector<float>& box,
+                                        const std::vector<float>& fparam,
+                                        const std::vector<float>& aparam,
+                                        const bool atomic) {
+  translate_error([&] {
+    compute_mixed_type_impl(ener, force, virial, atom_energy, atom_virial,
+                            nframes, coord, atype, box, fparam, aparam, {},
+                            atomic);
+  });
+}
+
+// charge_spin overloads — pass runtime charge/spin value through to compute()
+void DeepPotPTExpt::computew(std::vector<double>& ener,
+                             std::vector<double>& force,
+                             std::vector<double>& virial,
+                             std::vector<double>& atom_energy,
+                             std::vector<double>& atom_virial,
+                             const std::vector<double>& coord,
+                             const std::vector<int>& atype,
+                             const std::vector<double>& box,
+                             const std::vector<double>& fparam,
+                             const std::vector<double>& aparam,
+                             const std::vector<double>& charge_spin,
+                             const bool atomic) {
+  translate_error([&] {
+    compute(ener, force, virial, atom_energy, atom_virial, coord, atype, box,
+            fparam, aparam, charge_spin, atomic);
+  });
+}
+void DeepPotPTExpt::computew(std::vector<double>& ener,
+                             std::vector<float>& force,
+                             std::vector<float>& virial,
+                             std::vector<float>& atom_energy,
+                             std::vector<float>& atom_virial,
+                             const std::vector<float>& coord,
+                             const std::vector<int>& atype,
+                             const std::vector<float>& box,
+                             const std::vector<float>& fparam,
+                             const std::vector<float>& aparam,
+                             const std::vector<double>& charge_spin,
+                             const bool atomic) {
+  translate_error([&] {
+    compute(ener, force, virial, atom_energy, atom_virial, coord, atype, box,
+            fparam, aparam, charge_spin, atomic);
+  });
+}
+void DeepPotPTExpt::computew(std::vector<double>& ener,
+                             std::vector<double>& force,
+                             std::vector<double>& virial,
+                             std::vector<double>& atom_energy,
+                             std::vector<double>& atom_virial,
+                             const std::vector<double>& coord,
+                             const std::vector<int>& atype,
+                             const std::vector<double>& box,
+                             const int nghost,
+                             const InputNlist& inlist,
+                             const int& ago,
+                             const std::vector<double>& fparam,
+                             const std::vector<double>& aparam,
+                             const std::vector<double>& charge_spin,
+                             const bool atomic) {
+  translate_error([&] {
+    compute(ener, force, virial, atom_energy, atom_virial, coord, atype, box,
+            nghost, inlist, ago, fparam, aparam, charge_spin, atomic);
+  });
+}
+void DeepPotPTExpt::computew(std::vector<double>& ener,
+                             std::vector<float>& force,
+                             std::vector<float>& virial,
+                             std::vector<float>& atom_energy,
+                             std::vector<float>& atom_virial,
+                             const std::vector<float>& coord,
+                             const std::vector<int>& atype,
+                             const std::vector<float>& box,
+                             const int nghost,
+                             const InputNlist& inlist,
+                             const int& ago,
+                             const std::vector<float>& fparam,
+                             const std::vector<float>& aparam,
+                             const std::vector<double>& charge_spin,
+                             const bool atomic) {
+  translate_error([&] {
+    compute(ener, force, virial, atom_energy, atom_virial, coord, atype, box,
+            nghost, inlist, ago, fparam, aparam, charge_spin, atomic);
+  });
+}
+void DeepPotPTExpt::computew_mixed_type(std::vector<double>& ener,
+                                        std::vector<double>& force,
+                                        std::vector<double>& virial,
+                                        std::vector<double>& atom_energy,
+                                        std::vector<double>& atom_virial,
+                                        const int& nframes,
+                                        const std::vector<double>& coord,
+                                        const std::vector<int>& atype,
+                                        const std::vector<double>& box,
+                                        const std::vector<double>& fparam,
+                                        const std::vector<double>& aparam,
+                                        const std::vector<double>& charge_spin,
+                                        const bool atomic) {
+  translate_error([&] {
+    compute_mixed_type_impl(ener, force, virial, atom_energy, atom_virial,
+                            nframes, coord, atype, box, fparam, aparam,
+                            charge_spin, atomic);
+  });
+}
+void DeepPotPTExpt::computew_mixed_type(std::vector<double>& ener,
+                                        std::vector<float>& force,
+                                        std::vector<float>& virial,
+                                        std::vector<float>& atom_energy,
+                                        std::vector<float>& atom_virial,
+                                        const int& nframes,
+                                        const std::vector<float>& coord,
+                                        const std::vector<int>& atype,
+                                        const std::vector<float>& box,
+                                        const std::vector<float>& fparam,
+                                        const std::vector<float>& aparam,
+                                        const std::vector<double>& charge_spin,
+                                        const bool atomic) {
+  translate_error([&] {
+    compute_mixed_type_impl(ener, force, virial, atom_energy, atom_virial,
+                            nframes, coord, atype, box, fparam, aparam,
+                            charge_spin, atomic);
+  });
+}
+
+template <typename EDGE_TYPE>
+void DeepPotPTExpt::compute_edges_gpu_impl(double* d_atom_energy,
+                                           double* d_force,
+                                           double* d_atom_virial,
+                                           const double* d_coord,
+                                           const int* d_atype,
+                                           const int* d_edge_index,
+                                           const EDGE_TYPE* d_edge_vec,
+                                           const int nloc,
+                                           const int nedge,
+                                           const std::vector<double>& fparam,
+                                           const std::vector<double>& aparam,
+                                           const int nall_nodes,
+                                           const InputNlist* comm_nlist) {
+  if (lower_input_is_canonical_) {
+    throw deepmd::deepmd_exception(
+        "compute_edges_gpu cannot serve a compact canonical artifact; use "
+        "compute_canonical_graph_gpu.");
+  }
+  constexpr bool edge_fp32 = std::is_same_v<EDGE_TYPE, float>;
+  if (lower_input_is_graph_ && edge_fp32 != graph_edge_fp32_) {
+    throw deepmd::deepmd_exception(
+        "compute_edges_gpu: edge-vector pointer precision does not match the "
+        "graph_edge_dtype recorded by the .pt2 artifact.");
+  }
+  // ``nall_nodes`` is the graph node count: ``nloc`` folds ghosts onto local
+  // owners (single domain, minimum image); ``nall_nodes > nloc`` keeps the
+  // extended (local + ghost) node set so a domain-decomposed run operates on
+  // per-extended forces. A non-message-passing graph then reverse-communicates
+  // ghost forces to their owners (the caller's responsibility); a
+  // message-passing model instead exchanges ghost features across ranks inside
+  // the forward pass, which requires ``comm_nlist`` and the with-comm artifact.
+  const int nnode = (nall_nodes > 0) ? nall_nodes : nloc;
+  const bool extended = nnode != nloc;
+  const bool use_with_comm = has_comm_artifact_ && comm_nlist;
+  if (lower_input_is_graph_ && extended && has_message_passing_) {
+    throw deepmd::deepmd_exception(
+        "compute_edges_gpu: message-passing graph-input inference requires an "
+        "edge-input model with its with-comm artifact.");
+  }
+  if (extended && !lower_input_is_graph_ && !use_with_comm) {
+    throw deepmd::deepmd_exception(
+        "compute_edges_gpu: the extended node set (nall_nodes > nloc) requires "
+        "a graph-input model, or a message-passing model with its with-comm "
+        "artifact and a comm_nlist.");
+  }
+  // Fully device-resident inference for edge-input and graph-input models.
+  //
+  // The caller (an MD engine or the LAMMPS Kokkos pair) builds the neighbor
+  // list and the compact edge schema on the GPU and passes raw device
+  // pointers.  This entry keeps every tensor on the GPU: coordinates, the edge
+  // graph and the model outputs never leave the device, eliminating the host
+  // neighbor-list build and the per-step host-device transfers of the
+  // standalone ``compute`` path.
+  //
+  // Edge contract: ``edge_index`` is the flattened [2, nedge] graph (row 0 =
+  // neighbor/source, row 1 = center/destination) and ``edge_vec`` carries the
+  // bond vector ``r_neighbor - r_center``.  On a single domain the graph folds
+  // ghosts onto local owners and indexes local atoms; under domain
+  // decomposition it indexes the extended node set and the per-node forces are
+  // folded onto their owners by the caller's reverse communication.
+  if (!gpu_enabled) {
+    throw deepmd::deepmd_exception(
+        "compute_edges_gpu requires a CUDA device but the model was loaded on "
+        "CPU.");
+  }
+  if (!do_atomic_virial) {
+    throw deepmd::deepmd_exception(
+        "compute_edges_gpu always returns the per-atom virial, but this .pt2 "
+        "model was exported without it (do_atomic_virial=False).");
+  }
+  if (!lower_input_is_edge_ && !lower_input_is_graph_) {
+    throw deepmd::deepmd_exception(
+        "compute_edges_gpu requires an edge-input or graph-input .pt2 model.");
+  }
+  if (lower_input_is_graph_ && nnode == 0) {
+    return;
+  }
+  translate_error([&] {
+    const torch::Device device(torch::kCUDA, gpu_id);
+    const c10::DeviceGuard device_guard(device);
+    const auto opt_f64 =
+        torch::TensorOptions().dtype(torch::kFloat64).device(device);
+    const auto opt_edge =
+        torch::TensorOptions()
+            .dtype(edge_fp32 ? torch::kFloat32 : torch::kFloat64)
+            .device(device);
+    const auto opt_i32 =
+        torch::TensorOptions().dtype(torch::kInt32).device(device);
+    const auto opt_i64 =
+        torch::TensorOptions().dtype(torch::kInt64).device(device);
+    const auto opt_bool =
+        torch::TensorOptions().dtype(torch::kBool).device(device);
+
+    // === Step 1. Wrap caller GPU buffers as tensors (no copy) ===
+    at::Tensor coord_t = nloc > 0
+                             ? torch::from_blob(const_cast<double*>(d_coord),
+                                                {1, nloc, 3}, opt_f64)
+                             : torch::empty({1, 0, 3}, opt_f64);
+    at::Tensor atype_t = nnode > 0 ? torch::from_blob(const_cast<int*>(d_atype),
+                                                      {1, nnode}, opt_i32)
+                                         .to(torch::kInt64)
+                                   : torch::empty({1, 0}, opt_i64);
+    at::Tensor edge_index_real =
+        nedge > 0 ? torch::from_blob(const_cast<int*>(d_edge_index), {2, nedge},
+                                     opt_i32)
+                        .to(torch::kInt64)
+                  : torch::empty({2, 0}, opt_i64);
+    at::Tensor edge_vec_real =
+        nedge > 0 ? torch::from_blob(const_cast<EDGE_TYPE*>(d_edge_vec),
+                                     {nedge, 3}, opt_edge)
+                  : torch::empty({0, 3}, opt_edge);
+
+    // === Step 2. Append two masked dummy edges (exported-graph contract) ===
+    at::Tensor edge_index =
+        torch::cat({edge_index_real, torch::zeros({2, 2}, opt_i64)}, 1);
+    at::Tensor edge_vec =
+        torch::cat({edge_vec_real, torch::zeros({2, 3}, opt_edge)}, 0);
+    at::Tensor edge_mask = torch::cat(
+        {torch::ones({nedge}, opt_bool), torch::zeros({2}, opt_bool)});
+    // Single-domain scheme: the force-scatter index is the (local) edge graph.
+    const at::Tensor& edge_scatter_index = edge_index;
+
+    // === Step 3. Optional model inputs (runtime fparam/aparam or defaults) ===
+    // A non-empty runtime ``fparam`` overrides the stored default; an empty one
+    // falls back to the ``.pt2`` metadata default. ``aparam`` is per-atom and
+    // has no metadata default, so it must contain exactly ``nloc * daparam``
+    // values. An empty owned partition therefore carries a valid empty tensor
+    // with shape ``(1, 0, daparam)``.
+    const auto opt_f64_cpu = torch::TensorOptions().dtype(torch::kFloat64);
+    at::Tensor fparam_tensor;
+    if (dfparam > 0) {
+      const std::vector<double>* fp = nullptr;
+      if (!fparam.empty()) {
+        if (static_cast<int>(fparam.size()) != dfparam) {
+          throw deepmd::deepmd_exception(
+              "compute_edges_gpu: fparam size does not match the model's "
+              "dfparam.");
+        }
+        fp = &fparam;
+      } else if (has_default_fparam_ && !default_fparam_.empty()) {
+        fp = &default_fparam_;
+      } else {
+        throw deepmd::deepmd_exception(
+            "compute_edges_gpu: model requires fparam but none was provided "
+            "and "
+            "no default_fparam is stored in the .pt2 metadata.");
+      }
+      fparam_tensor =
+          torch::from_blob(const_cast<double*>(fp->data()),
+                           {1, static_cast<std::int64_t>(fp->size())},
+                           opt_f64_cpu)
+              .clone()
+              .to(device);
+    } else {
+      fparam_tensor = torch::zeros({0}, opt_f64);
+    }
+    at::Tensor aparam_tensor =
+        make_aparam_tensor(aparam, nloc, daparam, device);
+    at::Tensor charge_spin_tensor;
+    if (dchgspin > 0) {
+      if (default_chg_spin_.empty()) {
+        throw deepmd::deepmd_exception(
+            "compute_edges_gpu: model requires charge_spin but no "
+            "default_chg_spin is stored in the .pt2 metadata.");
+      }
+      charge_spin_tensor =
+          torch::from_blob(const_cast<double*>(default_chg_spin_.data()),
+                           {1, dchgspin},
+                           torch::TensorOptions().dtype(torch::kFloat64))
+              .clone()
+              .to(device);
+    }
+
+    // Communication tensors for the message-passing (with-comm) forward pass:
+    // the extended node set exchanges ghost features across ranks via
+    // border_op. The send/recv swap metadata comes straight from the caller's
+    // neighbor list; the tensors are tiny (nswap entries) and built on the
+    // host.
+    const int phantom_n =
+        use_with_comm && lower_input_is_edge_ && nloc == 0 ? 2 : 0;
+    std::vector<std::vector<int>> shifted_sendlist;
+    std::vector<int*> shifted_sendlist_ptrs;
+    std::vector<at::Tensor> comm_tensors;
+    if (use_with_comm) {
+      if (phantom_n > 0) {
+        shifted_sendlist.resize(comm_nlist->nswap);
+        shifted_sendlist_ptrs.resize(comm_nlist->nswap);
+        for (int iswap = 0; iswap < comm_nlist->nswap; ++iswap) {
+          shifted_sendlist[iswap].assign(
+              comm_nlist->sendlist[iswap],
+              comm_nlist->sendlist[iswap] + comm_nlist->sendnum[iswap]);
+          for (int& index : shifted_sendlist[iswap]) {
+            index += phantom_n;
+          }
+          shifted_sendlist_ptrs[iswap] = shifted_sendlist[iswap].data();
+        }
+        comm_tensors = deepmd::ptexpt::build_comm_tensors_positional(
+            *comm_nlist, shifted_sendlist_ptrs.data(), comm_nlist->sendnum,
+            comm_nlist->recvnum, phantom_n, nnode);
+      } else {
+        comm_tensors = deepmd::ptexpt::build_comm_tensors_positional(
+            *comm_nlist, comm_nlist->sendlist, comm_nlist->sendnum,
+            comm_nlist->recvnum, nloc, nnode - nloc);
+      }
+    }
+
+    // === Step 4. Run the exported model and read the per-atom outputs ===
+    // The two lower forms share the masked edge tensors but differ in both the
+    // input set and the output naming, so each form runs and unpacks itself;
+    // the result is always per-atom energy (nloc), force (nloc, 3) and virial
+    // (nloc, 9), copied out below.
+    at::Tensor ae, force_t, av;
+    std::map<std::string, torch::Tensor> out;
+    if (lower_input_is_graph_) {
+      // Graph-input: descriptor nodes include halos while n_local gates fitting
+      // outputs and the energy reduction to owned atoms.
+      const at::Tensor n_node =
+          torch::full({1}, static_cast<std::int64_t>(nnode), opt_i64);
+      const at::Tensor n_local =
+          torch::full({1}, static_cast<std::int64_t>(nloc), opt_i64);
+      // Flat (N, daparam) graph ABI: validate the width, zero-pad ghost
+      // rows, and synthesize a zero tensor on a ghost-only subdomain --
+      // the rank-3 (1, nnode, daparam) pad this branch used before is
+      // rejected by the artifact (GeneralFitting.call_graph requires
+      // rank-2 aparam), so device-edge graph inference with
+      // numb_aparam > 0 failed at the artifact boundary.
+      at::Tensor graph_aparam =
+          extend_graph_aparam(aparam_tensor, nnode, nloc, daparam);
+      GraphTensorPack graph_pack;
+      graph_pack.atype = atype_t.reshape({nnode});
+      graph_pack.n_node = n_node;
+      graph_pack.n_local = n_local;
+      graph_pack.edge_index = edge_index;
+      graph_pack.edge_vec = edge_vec;
+      graph_pack.edge_mask = deepmd::applyPairExclusion(
+          edge_index, edge_mask, graph_pack.atype, pair_exclude_table_, ntypes);
+      if (pair_exclude_table_.defined()) {
+        canonicalizeGraphPayload(graph_pack, nnode);
+      } else {
+        // The device-edge API requires a destination-major physical-edge
+        // prefix. The Kokkos producer satisfies this contract, so the exported
+        // graph's destination-sorted specialization can use identity order.
+        using BuildGraphCSR =
+            std::tuple<torch::Tensor, torch::Tensor, torch::Tensor,
+                       torch::Tensor>(torch::Tensor, c10::SymInt, c10::SymInt);
+        static const auto build_graph_csr =
+            c10::Dispatcher::singleton()
+                .findSchemaOrThrow("deepmd::build_graph_csr", "")
+                .typed<BuildGraphCSR>();
+        std::tie(graph_pack.destination_order, graph_pack.destination_row_ptr,
+                 graph_pack.source_order, graph_pack.source_row_ptr) =
+            build_graph_csr.call(edge_index, c10::SymInt(nnode),
+                                 c10::SymInt(nedge));
+      }
+      extract_outputs(
+          out,
+          run_model_graph(
+              graph_pack.atype, graph_pack.n_node, graph_pack.n_local,
+              graph_pack.edge_index, graph_pack.edge_vec, graph_pack.edge_mask,
+              graph_pack.destination_order, graph_pack.destination_row_ptr,
+              graph_pack.source_order, graph_pack.source_row_ptr, fparam_tensor,
+              graph_aparam, charge_spin_tensor));
+      ae = out["atom_energy"].reshape({nnode}).slice(0, 0, nloc).contiguous();
+      force_t = out["force"].reshape({nnode, 3}).contiguous();
+      av = out["atom_virial"].reshape({nnode, 9}).contiguous();
+    } else if (use_with_comm && phantom_n > 0) {
+      // Two masked local atoms satisfy the exported lower bounds while every
+      // rank participates in border communication. The prefix also reserves
+      // the slots before received halo features.
+      at::Tensor coord_ext =
+          nnode > 0 ? torch::from_blob(const_cast<double*>(d_coord),
+                                       {1, nnode, 3}, opt_f64)
+                    : torch::empty({1, 0, 3}, opt_f64);
+      at::Tensor padded_coord =
+          torch::cat({torch::zeros({1, phantom_n, 3}, opt_f64), coord_ext}, 1);
+      at::Tensor padded_atype =
+          torch::cat({torch::zeros({1, phantom_n}, opt_i64), atype_t}, 1);
+      at::Tensor local_atype = torch::zeros({1, phantom_n}, opt_i64);
+      at::Tensor phantom_edge_index = torch::zeros({2, 2}, opt_i64);
+      at::Tensor phantom_edge_vec = torch::zeros({2, 3}, opt_edge);
+      at::Tensor phantom_edge_mask = torch::zeros({2}, opt_bool);
+      at::Tensor phantom_aparam =
+          daparam > 0 ? torch::zeros({1, phantom_n, daparam}, opt_f64)
+                      : aparam_tensor;
+      extract_outputs(
+          out,
+          run_model_edges_with_comm(
+              padded_coord, local_atype, padded_atype, phantom_edge_index,
+              phantom_edge_vec, phantom_edge_index, phantom_edge_mask,
+              fparam_tensor, phantom_aparam, charge_spin_tensor, comm_tensors));
+      ae = out["energy"].reshape({phantom_n}).slice(0, phantom_n).contiguous();
+      force_t = out["energy_derv_r"]
+                    .squeeze(-2)
+                    .reshape({phantom_n + nnode, 3})
+                    .slice(0, phantom_n)
+                    .contiguous();
+      av = out["energy_derv_c"]
+               .squeeze(-2)
+               .reshape({phantom_n + nnode, 9})
+               .slice(0, phantom_n)
+               .contiguous();
+    } else if (use_with_comm) {
+      // Message-passing edge model, domain-decomposed: the extended node set
+      // supplies coordinates and types, the local slice feeds the fitting, and
+      // ghost node features are exchanged across ranks inside the forward pass
+      // via the with-comm artifact. ``edge_index`` already indexes the extended
+      // set, so it doubles as the force-scatter index.
+      at::Tensor coord_ext = torch::from_blob(const_cast<double*>(d_coord),
+                                              {1, nnode, 3}, opt_f64);
+      extract_outputs(
+          out, run_model_edges_with_comm(
+                   coord_ext, atype_t.slice(1, 0, nloc), atype_t, edge_index,
+                   edge_vec, edge_index, edge_mask, fparam_tensor,
+                   aparam_tensor, charge_spin_tensor, comm_tensors));
+      ae = out["energy"].reshape({nloc}).contiguous();
+      force_t =
+          out["energy_derv_r"].squeeze(-2).reshape({nnode, 3}).contiguous();
+      av = out["energy_derv_c"].squeeze(-2).reshape({nnode, 9}).contiguous();
+    } else {
+      // Edge, single domain (minimum image): coordinates and edge-scatter index
+      // over local atoms; the model returns the reduced-energy derivatives.
+      extract_outputs(
+          out, run_model_edges(coord_t, atype_t, edge_index, edge_vec,
+                               edge_scatter_index, edge_mask, fparam_tensor,
+                               aparam_tensor, charge_spin_tensor));
+      ae = out["energy"].reshape({nloc}).contiguous();
+      force_t =
+          out["energy_derv_r"].squeeze(-2).reshape({nnode, 3}).contiguous();
+      av = out["energy_derv_c"].squeeze(-2).reshape({nnode, 9}).contiguous();
+    }
+
+    // === Step 5. Copy outputs into caller GPU buffers (D2D) ===
+    // Energy is per local atom (nloc); force and per-atom virial span the node
+    // set (nnode == nloc folded, or nall extended).
+    if (nloc > 0) {
+      torch::from_blob(d_atom_energy, {nloc}, opt_f64).copy_(ae);
+    }
+    if (nnode > 0) {
+      torch::from_blob(d_force, {nnode, 3}, opt_f64).copy_(force_t);
+      torch::from_blob(d_atom_virial, {nnode, 9}, opt_f64).copy_(av);
+    }
+    synchronize_current_accelerator_stream();
+  });
+}
+
+void DeepPotPTExpt::compute_canonical_graph_gpu_impl(
+    double* d_atom_energy,
+    double* d_force,
+    double* d_atom_virial,
+    const std::int64_t* d_atype,
+    const std::uint32_t* d_source,
+    const float* d_edge_vec,
+    const std::int64_t* d_destination_row_ptr,
+    const std::int64_t* d_source_row_ptr,
+    const std::uint32_t* d_source_order,
+    const int nloc,
+    const int nall_nodes,
+    const std::int64_t edge_storage) {
+  if (!lower_input_is_canonical_) {
+    throw deepmd::deepmd_exception(
+        "compute_canonical_graph_gpu requires a compact canonical artifact.");
+  }
+  if (!gpu_enabled) {
+    throw deepmd::deepmd_exception(
+        "compute_canonical_graph_gpu requires a CUDA device.");
+  }
+  if (nloc < 0 || nall_nodes <= 0 || nloc > nall_nodes || edge_storage < 2 ||
+      static_cast<std::uint64_t>(edge_storage) >
+          std::numeric_limits<std::uint32_t>::max()) {
+    throw deepmd::deepmd_exception(
+        "invalid compact canonical graph dimensions.");
+  }
+
+  translate_error([&] {
+    const torch::Device device(torch::kCUDA, gpu_id);
+    const c10::DeviceGuard device_guard(device);
+    const auto opt_f32 =
+        torch::TensorOptions().dtype(torch::kFloat32).device(device);
+    const auto opt_i64 =
+        torch::TensorOptions().dtype(torch::kInt64).device(device);
+    const auto opt_u32 = torch::TensorOptions()
+                             .dtype(deepmd::canonicalGraphIndexType())
+                             .device(device);
+    const auto opt_f64 =
+        torch::TensorOptions().dtype(torch::kFloat64).device(device);
+    // Reuse from_blob wrappers while Kokkos buffers and the edge axis stay
+    // put. Building eight TensorImpls every MD step was host time on the
+    // small-system path.
+    struct CanonBlobCache {
+      const void* ptrs[9] = {};
+      int nloc = -1;
+      int nnode = -1;
+      std::int64_t edge_storage = -1;
+      torch::Tensor atype;
+      torch::Tensor source;
+      torch::Tensor edge_vec;
+      torch::Tensor destination_row_ptr;
+      torch::Tensor source_row_ptr;
+      torch::Tensor source_order;
+      torch::Tensor energy;
+      torch::Tensor force;
+      torch::Tensor virial;
+    };
+    static thread_local CanonBlobCache blob;
+    const void* ptrs[9] = {
+        static_cast<const void*>(d_atype),
+        static_cast<const void*>(d_source),
+        static_cast<const void*>(d_edge_vec),
+        static_cast<const void*>(d_destination_row_ptr),
+        static_cast<const void*>(d_source_row_ptr),
+        static_cast<const void*>(d_source_order),
+        static_cast<const void*>(d_atom_energy),
+        static_cast<const void*>(d_force),
+        static_cast<const void*>(d_atom_virial),
+    };
+    bool same = blob.nloc == nloc && blob.nnode == nall_nodes &&
+                blob.edge_storage == edge_storage && blob.atype.defined() &&
+                blob.atype.device() == device;
+    if (same) {
+      for (int i = 0; i < 9; ++i) {
+        if (blob.ptrs[i] != ptrs[i]) {
+          same = false;
+          break;
+        }
+      }
+    }
+    if (!same) {
+      blob.atype = torch::from_blob(const_cast<std::int64_t*>(d_atype),
+                                    {nall_nodes}, opt_i64);
+      blob.source = torch::from_blob(const_cast<std::uint32_t*>(d_source),
+                                     {edge_storage}, opt_u32);
+      blob.edge_vec = torch::from_blob(const_cast<float*>(d_edge_vec),
+                                       {edge_storage, 3}, opt_f32);
+      blob.destination_row_ptr =
+          torch::from_blob(const_cast<std::int64_t*>(d_destination_row_ptr),
+                           {nall_nodes + 1}, opt_i64);
+      blob.source_row_ptr = torch::from_blob(
+          const_cast<std::int64_t*>(d_source_row_ptr), {nall_nodes + 1},
+          opt_i64);
+      blob.source_order = torch::from_blob(
+          const_cast<std::uint32_t*>(d_source_order), {edge_storage}, opt_u32);
+      blob.energy = nloc > 0
+                        ? torch::from_blob(d_atom_energy, {nloc}, opt_f64)
+                        : torch::Tensor();
+      blob.force = torch::from_blob(d_force, {nall_nodes, 3}, opt_f64);
+      blob.virial = torch::from_blob(d_atom_virial, {nall_nodes, 9}, opt_f64);
+      blob.nloc = nloc;
+      blob.nnode = nall_nodes;
+      blob.edge_storage = edge_storage;
+      for (int i = 0; i < 9; ++i) {
+        blob.ptrs[i] = ptrs[i];
+      }
+    }
+    // nloc/nnode are stable between neighbor rebuilds; reuse the scalars
+    // instead of allocating a two-element tensor every MD step.
+    static thread_local torch::Tensor cached_n_node;
+    static thread_local torch::Tensor cached_n_local;
+    static thread_local int cached_n_node_val = -1;
+    static thread_local int cached_n_local_val = -1;
+    if (cached_n_node_val != nall_nodes || !cached_n_node.defined() ||
+        cached_n_node.device() != device) {
+      cached_n_node = torch::full({1}, nall_nodes, opt_i64);
+      cached_n_node_val = nall_nodes;
+    }
+    if (cached_n_local_val != nloc || !cached_n_local.defined() ||
+        cached_n_local.device() != device) {
+      cached_n_local = torch::full({1}, nloc, opt_i64);
+      cached_n_local_val = nloc;
+    }
+
+    static thread_local int idx_energy = -1;
+    static thread_local int idx_force = -1;
+    static thread_local int idx_virial = -1;
+    if (idx_energy < 0) {
+      for (size_t i = 0; i < output_keys.size(); ++i) {
+        if (output_keys[i] == "atom_energy") {
+          idx_energy = static_cast<int>(i);
+        } else if (output_keys[i] == "force") {
+          idx_force = static_cast<int>(i);
+        } else if (output_keys[i] == "atom_virial") {
+          idx_virial = static_cast<int>(i);
+        }
+      }
+      if (idx_energy < 0 || idx_force < 0 || idx_virial < 0) {
+        throw deepmd::deepmd_exception(
+            "canonical artifact is missing atom_energy/force/atom_virial");
+      }
+    }
+
+    using DirectFn = int (*)(const std::int64_t*, const std::int64_t*, const std::uint32_t*,
+                             const float*, std::int64_t, std::int64_t, std::int64_t, double*,
+                             double*, double*);
+    static const DirectFn direct_fn = []() -> DirectFn {
+      const char* e = std::getenv("DPA_DIRECT_ENGINE");
+      if (!e || e[0] != '1') return nullptr;
+      void* f = dlsym(RTLD_DEFAULT, "dpa_direct_energy_force");
+      if (!f) {
+        if (void* h = dlopen("libdeepmd_op_pt.so", RTLD_LAZY | RTLD_NOLOAD)) f = dlsym(h, "dpa_direct_energy_force");
+      }
+      std::fprintf(stderr, "DPA_DIRECT_ENGINE %s\n", f ? "on" : "missing");
+      return reinterpret_cast<DirectFn>(f);
+    }();
+    auto body = [&]() {
+    const bool destination_only_graph =
+        d_source_row_ptr == d_destination_row_ptr &&
+        d_source_order == d_source;
+    if (direct_fn && direct_fn(d_atype, d_destination_row_ptr, d_source, d_edge_vec, nall_nodes,
+                               nloc, edge_storage, d_atom_energy, d_force, d_atom_virial)) {
+      return;
+    }
+    if (destination_only_graph) {
+      throw deepmd::deepmd_exception(
+          "destination-only canonical graph lost its direct DPA4C consumer");
+    }
+    const auto flat = run_model_canonical_graph(
+        blob.atype, cached_n_node, cached_n_local, blob.source, blob.edge_vec,
+        blob.destination_row_ptr, blob.source_row_ptr, blob.source_order);
+    if (flat.size() != output_keys.size()) {
+      throw deepmd::deepmd_exception(
+          "Model returned " + std::to_string(flat.size()) +
+          " outputs but expected " + std::to_string(output_keys.size()) +
+          " (from metadata.json)");
+    }
+    auto atom_energy =
+        flat[idx_energy].reshape({nall_nodes}).slice(0, 0, nloc);
+    if (!atom_energy.is_contiguous()) {
+      atom_energy = atom_energy.contiguous();
+    }
+    auto force = flat[idx_force].reshape({nall_nodes, 3});
+    if (!force.is_contiguous()) {
+      force = force.contiguous();
+    }
+    auto atom_virial = flat[idx_virial].reshape({nall_nodes, 9});
+    if (!atom_virial.is_contiguous()) {
+      atom_virial = atom_virial.contiguous();
+    }
+    if (nloc > 0) {
+      blob.energy.copy_(atom_energy);
+    }
+    blob.force.copy_(force);
+    blob.virial.copy_(atom_virial);
+    };
+#if defined(GOOGLE_CUDA)
+    std::vector<std::int64_t> key;
+    for (int i = 0; i < 9; ++i) key.push_back(reinterpret_cast<std::int64_t>(ptrs[i]));
+    key.push_back(nloc);
+    key.push_back(nall_nodes);
+    key.push_back(edge_storage);
+    append_direct_view_key(key);
+    if (!dpa_replay_model_graph(key, nall_nodes, gpu_id, body)) body();
+#else
+    body();
+#endif
+    synchronize_current_accelerator_stream();
+  });
+}
+
+void DeepPotPTExpt::compute_edges_gpu(double* d_atom_energy,
+                                      double* d_force,
+                                      double* d_atom_virial,
+                                      const double* d_coord,
+                                      const int* d_atype,
+                                      const int* d_edge_index,
+                                      const double* d_edge_vec,
+                                      const int nloc,
+                                      const int nedge) {
+  compute_edges_gpu_impl(d_atom_energy, d_force, d_atom_virial, d_coord,
+                         d_atype, d_edge_index, d_edge_vec, nloc, nedge,
+                         /*fparam=*/{}, /*aparam=*/{}, /*nall_nodes=*/0,
+                         /*comm_nlist=*/nullptr);
+}
+
+void DeepPotPTExpt::compute_edges_gpu(double* d_atom_energy,
+                                      double* d_force,
+                                      double* d_atom_virial,
+                                      const double* d_coord,
+                                      const int* d_atype,
+                                      const int* d_edge_index,
+                                      const double* d_edge_vec,
+                                      const int nloc,
+                                      const int nedge,
+                                      const std::vector<double>& fparam,
+                                      const std::vector<double>& aparam,
+                                      const int nall_nodes,
+                                      const InputNlist* comm_nlist) {
+  compute_edges_gpu_impl(d_atom_energy, d_force, d_atom_virial, d_coord,
+                         d_atype, d_edge_index, d_edge_vec, nloc, nedge, fparam,
+                         aparam, nall_nodes, comm_nlist);
+}
+
+void DeepPotPTExpt::compute_edges_gpu(double* d_atom_energy,
+                                      double* d_force,
+                                      double* d_atom_virial,
+                                      const double* d_coord,
+                                      const int* d_atype,
+                                      const int* d_edge_index,
+                                      const float* d_edge_vec,
+                                      const int nloc,
+                                      const int nedge,
+                                      const std::vector<double>& fparam,
+                                      const std::vector<double>& aparam,
+                                      const int nall_nodes,
+                                      const InputNlist* comm_nlist) {
+  compute_edges_gpu_impl(d_atom_energy, d_force, d_atom_virial, d_coord,
+                         d_atype, d_edge_index, d_edge_vec, nloc, nedge, fparam,
+                         aparam, nall_nodes, comm_nlist);
+}
+
+void DeepPotPTExpt::compute_canonical_graph_gpu(
+    double* d_atom_energy,
+    double* d_force,
+    double* d_atom_virial,
+    const std::int64_t* d_atype,
+    const std::uint32_t* d_source,
+    const float* d_edge_vec,
+    const std::int64_t* d_destination_row_ptr,
+    const std::int64_t* d_source_row_ptr,
+    const std::uint32_t* d_source_order,
+    const int nloc,
+    const int nall_nodes,
+    const std::int64_t edge_storage) {
+  compute_canonical_graph_gpu_impl(
+      d_atom_energy, d_force, d_atom_virial, d_atype, d_source, d_edge_vec,
+      d_destination_row_ptr, d_source_row_ptr, d_source_order, nloc, nall_nodes,
+      edge_storage);
+}
+
+bool DeepPotPTExpt::uses_fp32_edge_vectors() const {
+  return (lower_input_is_graph_ || lower_input_is_canonical_) &&
+         graph_edge_fp32_;
+}
+
+bool DeepPotPTExpt::supports_device_edge_inference() const {
+  return lower_input_is_edge_ || lower_input_is_graph_ ||
+         lower_input_is_canonical_;
+}
+
+bool DeepPotPTExpt::uses_canonical_graph_inference() const {
+  return lower_input_is_canonical_;
+}
+
+#endif

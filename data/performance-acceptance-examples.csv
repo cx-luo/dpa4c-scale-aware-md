@@ -1,0 +1,4 @@
+﻿id,performance_scope,gain_pct,error_name,error,acceptance
+A02-full,8000-step full capture,3.5631475292558834,reported force RMSE (short/restart suite),9.19164e-07,scoped pass
+B01,256-step continuous MD,-53.805604610463355,192-step integrator state difference,2.76222854e-05,FAIL; tolerance 2.05e-5
+B02,256-step continuous MD,-21.42148529110328,192-step integrator state difference,5.42864218005e-05,FAIL; tolerance 2.05e-5

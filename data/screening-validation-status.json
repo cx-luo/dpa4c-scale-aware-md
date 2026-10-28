@@ -1,0 +1,15 @@
+{
+  "evidence_id": "B12",
+  "development_only": {
+    "TP": 2,
+    "TN": 11,
+    "FP": 0,
+    "FN": 0,
+    "balanced_accuracy": 1.0
+  },
+  "held_out": null,
+  "prospective": null,
+  "saved_compilation_minutes": null,
+  "saved_accelerator_minutes": null,
+  "warning": "Retrospective and endpoint-heterogeneous; not generalization accuracy."
+}

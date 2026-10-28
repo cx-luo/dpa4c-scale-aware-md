@@ -1,0 +1,12 @@
+{
+  "kind": "acceptance thresholds, not measured errors",
+  "limits": {
+    "energy_per_atom_eV_max_abs": 2e-05,
+    "force_eV_per_angstrom_rmse": 4e-05,
+    "force_eV_per_angstrom_max_abs": 0.0005,
+    "stress_GPa_max_abs": 0.0004,
+    "nve_drift_eV_per_atom_per_ps": 6e-06
+  },
+  "replay": "replay-thresholds.csv",
+  "historical_evaluator_code_hash_recorded": false
+}

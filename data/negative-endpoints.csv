@@ -1,0 +1,10 @@
+﻿id,endpoint,throughput_change_pct
+B01,Continuous MD,-53.805604610463355
+B02,Continuous MD,-21.42148529110328
+B05-v1-Si-small,Continuous MD,-48.441508179711825
+B05-v2-Si-small,Continuous MD,-36.6822500553967
+B09,Continuous MD,-4.518695073548473
+B10,Continuous MD,-5.044210641274994
+B06-65536-1,Isolated layer / microstage,-56.62573745374486
+B06-65536-2,Isolated layer / microstage,-57.95019030353383
+B07-Si-large-v2,Isolated layer / microstage,-34.387975748112474

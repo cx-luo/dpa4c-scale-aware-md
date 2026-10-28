@@ -1,0 +1,4 @@
+﻿evidence_id,component,seconds,fraction
+A07-output,MD with required output,21.63003656699948,0.45762994645433286
+A07-output,Evaluator SHA256 seal,21.677787806998822,0.45864022664208653
+A07-output,Other capture work,3.9575190210016444,0.08372982690358065

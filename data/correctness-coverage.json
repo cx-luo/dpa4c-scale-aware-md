@@ -1,0 +1,52 @@
+[
+  {
+    "evidence_id": "V1-C01",
+    "stage": "admission",
+    "cases": 9,
+    "reported_passes": 9,
+    "definition": "Input atom IDs/types/masses, cell, positions and velocities; finite physical state; temperature and E+K consistency.",
+    "horizon": "run-zero state",
+    "result_detail": "stage pass flags",
+    "limitation": "No original per-case scalar arrays recovered."
+  },
+  {
+    "evidence_id": "V1-C02",
+    "stage": "static",
+    "cases": 9,
+    "reported_passes": 9,
+    "definition": "Independent checkpoint energy/force/stress on original and translated, rotated, strained, permuted, neighbor-change and vacancy inputs.",
+    "horizon": "static frames",
+    "result_detail": "stage pass flags plus recovered evaluator definition",
+    "limitation": "Not a held-out performance test or a proof of all symmetry cases."
+  },
+  {
+    "evidence_id": "V1-C03",
+    "stage": "short",
+    "cases": 9,
+    "reported_passes": 9,
+    "definition": "NVE and configured NVT/NPT internal force frames; actual continuous native-restart replay; 32-step trusted trajectory; 200-step rebuild and strain probe.",
+    "horizon": "65 steps small/large; 257 steps medium, plus separate 32/200-step probes",
+    "result_detail": "stage pass flags; three small-NVE worker logs recovered",
+    "limitation": "Exact observed errors/rebuild counts and all loaded-library receipts are not retained."
+  },
+  {
+    "evidence_id": "V1-C04",
+    "stage": "long",
+    "cases": 9,
+    "reported_passes": 9,
+    "definition": "NVE and configured ensemble: one continuous 5000-step run each, sampled checkpoint numeric checks, internal force verification, physical statistics, NVE consumed-force consistency and energy drift.",
+    "horizon": "5000 steps = 5 ps per ensemble per case",
+    "result_detail": "stage pass flags plus matched frozen configuration",
+    "limitation": "Observed drift values and full per-frame numerical arrays are unavailable; 5 ps is not a long-timescale scientific stability claim."
+  },
+  {
+    "evidence_id": "V1-C05",
+    "stage": "post-timer audit",
+    "cases": 9,
+    "reported_passes": 0,
+    "definition": "Independent verification of selected timed candidate intervals.",
+    "horizon": "would be 3 intervals per case",
+    "result_detail": "not_run; checked_intervals=0; verified=false",
+    "limitation": "Separate physical gates do not independently certify every sampled timed trajectory interval."
+  }
+]

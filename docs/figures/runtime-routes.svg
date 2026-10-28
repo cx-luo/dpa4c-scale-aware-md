@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1008 522" role="img" aria-labelledby="title-runtime-routes">
+<title id="title-runtime-routes">Scale- and state-aware runtime routes with shared guards</title>
+<rect width="1008" height="522" fill="white"/>
+<rect x="10" y="10" width="988" height="74" rx="6" fill="#f1f5f7" stroke="none" stroke-width="1.5"/>
+<text x="26" y="40" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="23" font-weight="700" fill="#172b3c">Route eligibility</text>
+<text x="26" y="68" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="20" font-weight="400" fill="#172b3c">Scale  /  ensemble  /  density  /  consumer layout  /  buffer generation  /  output state</text>
+<text x="10" y="119" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="20" font-weight="400" fill="#516473">Eligible specialized route</text>
+<polyline points="383,84 383,136 127,136 127,158" fill="none" stroke="#516473" stroke-width="1.8"/>
+<polygon points="127,158 131.5,148.0 122.5,148.0" fill="#516473"/>
+<polyline points="383,136 383,158" fill="none" stroke="#516473" stroke-width="1.8"/>
+<polygon points="383,158 387.5,148.0 378.5,148.0" fill="#516473"/>
+<polyline points="383,136 639,136 639,158" fill="none" stroke="#516473" stroke-width="1.8"/>
+<polygon points="639,158 643.5,148.0 634.5,148.0" fill="#516473"/>
+<polyline points="894,84 894,158" fill="none" stroke="#9f4b44" stroke-width="1.8" stroke-dasharray="8 6"/>
+<polygon points="894,158 898.5,148.0 889.5,148.0" fill="#9f4b44"/>
+<rect x="811" y="101" width="172" height="28" rx="0" fill="white" stroke="none" stroke-width="1.5"/>
+<text x="897" y="121" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="400" fill="#9f4b44">Ineligible shape</text>
+<rect x="10" y="158" width="234" height="174" rx="6" fill="white" stroke="#a7b6bf" stroke-width="1.5"/>
+<rect x="10" y="158" width="234" height="5" rx="0" fill="#285b7e" stroke="none" stroke-width="1.5"/>
+<text x="26" y="194" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="22" font-weight="700" fill="#285b7e">Small</text>
+<text x="26" y="226" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="400" fill="#172b3c">Single-step NVT graph</text>
+<text x="26" y="252" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="400" fill="#172b3c">Finite NPT phases</text>
+<text x="26" y="278" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="400" fill="#172b3c">Bounded host decisions</text>
+<rect x="266" y="158" width="234" height="174" rx="6" fill="white" stroke="#a7b6bf" stroke-width="1.5"/>
+<rect x="266" y="158" width="234" height="5" rx="0" fill="#217b74" stroke="none" stroke-width="1.5"/>
+<text x="282" y="194" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="22" font-weight="700" fill="#217b74">Medium</text>
+<text x="282" y="226" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="400" fill="#172b3c">Device thermostat</text>
+<text x="282" y="252" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="400" fill="#172b3c">Guarded outlined VJP</text>
+<text x="282" y="278" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="400" fill="#172b3c">Compatible consumers</text>
+<rect x="522" y="158" width="234" height="174" rx="6" fill="white" stroke="#a7b6bf" stroke-width="1.5"/>
+<rect x="522" y="158" width="234" height="5" rx="0" fill="#9a7024" stroke="none" stroke-width="1.5"/>
+<text x="538" y="194" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="22" font-weight="700" fill="#9a7024">Large</text>
+<text x="538" y="226" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="400" fill="#172b3c">Preserved overlap</text>
+<text x="538" y="252" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="400" fill="#172b3c">Forward normalizer</text>
+<text x="538" y="278" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="400" fill="#172b3c">Host / snapshot paths</text>
+<rect x="790" y="158" width="208" height="174" rx="6" fill="white" stroke="#a7b6bf" stroke-width="1.5"/>
+<rect x="790" y="158" width="208" height="5" rx="0" fill="#516473" stroke="none" stroke-width="1.5"/>
+<text x="806" y="194" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="22" font-weight="700" fill="#516473">Fallback</text>
+<text x="806" y="226" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="400" fill="#172b3c">Established general</text>
+<text x="806" y="252" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="400" fill="#172b3c">execution path</text>
+<text x="806" y="278" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="400" fill="#172b3c">Same physical task</text>
+<polyline points="127,332 127,365" fill="none" stroke="#516473" stroke-width="1.6"/>
+<polyline points="383,332 383,365" fill="none" stroke="#516473" stroke-width="1.6"/>
+<polyline points="639,332 639,365" fill="none" stroke="#516473" stroke-width="1.6"/>
+<polyline points="894,332 894,365" fill="none" stroke="#516473" stroke-width="1.6"/>
+<polyline points="127,365 894,365" fill="none" stroke="#516473" stroke-width="1.6"/>
+<polyline points="504,365 504,398" fill="none" stroke="#516473" stroke-width="1.8"/>
+<polygon points="504,398 508.5,388.0 499.5,388.0" fill="#516473"/>
+<rect x="10" y="398" width="988" height="81" rx="6" fill="#f1f5f7" stroke="none" stroke-width="1.5"/>
+<text x="26" y="429" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="22" font-weight="700" fill="#172b3c">Shared execution and completion contracts</text>
+<text x="26" y="459" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="400" fill="#172b3c">Consumer-ready graph  /  immutable model  /  force and virial  /  integration  /  exact output</text>
+<text x="10" y="510" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="400" fill="#516473">Missing required ABI: fail closed. Guards also apply to shared lower-level paths.</text>
+</svg>

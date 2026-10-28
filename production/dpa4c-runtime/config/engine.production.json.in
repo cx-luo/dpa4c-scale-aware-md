@@ -1,0 +1,21 @@
+{
+  "environment": {
+    "PYTHONPATH": "@STAGE@/python",
+    "CUDA_HOME": "@CUDA_HOME@",
+    "PPU_SDK": "@PPU_SDK@",
+    "DPA_AOTI_MODEL_DIRECTORY": "@STAGE@/models/aoti-model",
+    "DPA_AOTI_MODEL_LIBRARY": "@STAGE@/models/aoti-model/cz34vplffl2tycd62g3uhwj4aghbofssxw7rzvvup4qivqgmjbk2.wrapper.so",
+    "LD_PRELOAD": "@STAGE@/lib/libzerocopyrestart.so:@STAGE@/lib/libdevicerestart.so:@STAGE@/plugin/native-state-plugin.so:@STAGE@/lib/libdeviceobserver.so:@STAGE@/lib/libdpa-chain.so:@STAGE@/lib/libgrid.so",
+    "LAMMPS_PLUGIN_PATH": "@STAGE@/plugin",
+    "LD_LIBRARY_PATH": "@STAGE@/lib:@TORCH_LIB@:@CUDA_LIB@:@SDK_LIB@:/opt/accl-p"
+  },
+  "model_file": "@STAGE@/models/compressed.pt2",
+  "model_sha256": "6ab078d8b5f2a3e6ed2adbfefefa5e4be2244bc2c83f7db58bef126657d342e7",
+  "python": "@PYTHON@",
+  "source_identity": {
+    "entry": "production/dpa4c-runtime",
+    "cutoff_angstrom": 6.0,
+    "skin_angstrom": 1.0,
+    "small_npt_policy": "guarded atomic-ticket mapped host/device coroutine after force completion"
+  }
+}

@@ -1,0 +1,8 @@
+﻿evidence_id,type,bytes
+A07-output,internal_force,14441690592
+A07-output,state_binary,7335467392
+A07-output,periodic_restart,5628608000
+A07-output,boundary_snapshot,139186568
+A07-output,boundary_restart,90057728
+A07-output,other,12429353
+A07-output,total,27647439633

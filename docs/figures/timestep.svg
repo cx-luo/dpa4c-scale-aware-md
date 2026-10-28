@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1008 458" role="img" aria-labelledby="title-timestep">
+<title id="title-timestep">MD transition and the scored completion boundary</title>
+<rect width="1008" height="458" fill="white"/>
+<text x="10" y="28" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="23" font-weight="700" fill="#172b3c">A  Repeated MD transition</text>
+<rect x="10" y="60" width="170" height="146" rx="6" fill="white" stroke="#a7b6bf" stroke-width="1.5"/>
+<rect x="10" y="60" width="170" height="5" rx="0" fill="#285b7e" stroke="none" stroke-width="1.5"/>
+<text x="26" y="96" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="22" font-weight="700" fill="#285b7e">Integrate 1</text>
+<text x="26" y="128" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="400" fill="#172b3c">Positions</text>
+<text x="26" y="154" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="400" fill="#172b3c">and cell</text>
+<rect x="208" y="60" width="200" height="146" rx="6" fill="white" stroke="#a7b6bf" stroke-width="1.5"/>
+<rect x="208" y="60" width="200" height="5" rx="0" fill="#285b7e" stroke="none" stroke-width="1.5"/>
+<text x="224" y="96" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="22" font-weight="700" fill="#285b7e">Neighbor graph</text>
+<text x="224" y="128" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="400" fill="#172b3c">Rebuild decision</text>
+<text x="224" y="154" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="400" fill="#172b3c">Candidate edges</text>
+<rect x="436" y="60" width="332" height="146" rx="6" fill="white" stroke="#a7b6bf" stroke-width="1.5"/>
+<rect x="436" y="60" width="332" height="5" rx="0" fill="#217b74" stroke="none" stroke-width="1.5"/>
+<text x="452" y="96" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="22" font-weight="700" fill="#217b74">Neural potential</text>
+<text x="452" y="128" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="400" fill="#172b3c">Forward + fitting</text>
+<text x="452" y="154" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="400" fill="#172b3c">Edge / node backward</text>
+<text x="452" y="191" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="18" font-weight="400" fill="#516473">Energy / force / virial</text>
+<rect x="796" y="60" width="202" height="146" rx="6" fill="white" stroke="#a7b6bf" stroke-width="1.5"/>
+<rect x="796" y="60" width="202" height="5" rx="0" fill="#285b7e" stroke="none" stroke-width="1.5"/>
+<text x="812" y="96" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="22" font-weight="700" fill="#285b7e">Integrate 2</text>
+<text x="812" y="128" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="400" fill="#172b3c">Thermostat /</text>
+<text x="812" y="154" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="400" fill="#172b3c">barostat state</text>
+<polyline points="180,132 208,132" fill="none" stroke="#516473" stroke-width="1.8"/>
+<polygon points="208,132 198.0,127.5 198.0,136.5" fill="#516473"/>
+<polyline points="408,132 436,132" fill="none" stroke="#516473" stroke-width="1.8"/>
+<polygon points="436,132 426.0,127.5 426.0,136.5" fill="#516473"/>
+<polyline points="768,132 796,132" fill="none" stroke="#516473" stroke-width="1.8"/>
+<polygon points="796,132 786.0,127.5 786.0,136.5" fill="#516473"/>
+<polyline points="897,206 897,238 95,238 95,206" fill="none" stroke="#516473" stroke-width="1.8" stroke-dasharray="8 6"/>
+<polygon points="95,206 90.5,216.0 99.5,216.0" fill="#516473"/>
+<rect x="390" y="224" width="218" height="26" rx="0" fill="white" stroke="none" stroke-width="1.5"/>
+<text x="499" y="243" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="18" font-weight="400" fill="#516473">Next physical timestep</text>
+<text x="10" y="287" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="23" font-weight="700" fill="#172b3c">B  Required output and interval completion</text>
+<polyline points="998,132 1004,132 1004,299 166,299 166,324" fill="none" stroke="#9a7024" stroke-width="1.8"/>
+<polygon points="166,324 170.5,314.0 161.5,314.0" fill="#9a7024"/>
+<rect x="725" y="285" width="224" height="26" rx="0" fill="white" stroke="none" stroke-width="1.5"/>
+<text x="837" y="304" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="18" font-weight="400" fill="#9a7024">At prescribed boundaries</text>
+<rect x="10" y="324" width="304" height="91" rx="6" fill="white" stroke="#a7b6bf" stroke-width="1.5"/>
+<rect x="10" y="324" width="304" height="5" rx="0" fill="#9a7024" stroke="none" stroke-width="1.5"/>
+<text x="26" y="360" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="22" font-weight="700" fill="#9a7024">Capture observables</text>
+<text x="26" y="392" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="400" fill="#172b3c">State / internal force / restart</text>
+<rect x="352" y="324" width="304" height="91" rx="6" fill="white" stroke="#a7b6bf" stroke-width="1.5"/>
+<rect x="352" y="324" width="304" height="5" rx="0" fill="#9a7024" stroke="none" stroke-width="1.5"/>
+<text x="368" y="360" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="22" font-weight="700" fill="#9a7024">Own the snapshot</text>
+<text x="368" y="392" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="400" fill="#172b3c">Copy and serialize before reuse</text>
+<rect x="694" y="324" width="304" height="91" rx="6" fill="white" stroke="#a7b6bf" stroke-width="1.5"/>
+<rect x="694" y="324" width="304" height="5" rx="0" fill="#9a7024" stroke="none" stroke-width="1.5"/>
+<text x="710" y="360" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="22" font-weight="700" fill="#9a7024">Complete the interval</text>
+<text x="710" y="392" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="400" fill="#172b3c">Flush + evaluator SHA256 seal</text>
+<polyline points="314,372 352,372" fill="none" stroke="#9a7024" stroke-width="1.8"/>
+<polygon points="352,372 342.0,367.5 342.0,376.5" fill="#9a7024"/>
+<polyline points="656,372 694,372" fill="none" stroke="#9a7024" stroke-width="1.8"/>
+<polygon points="694,372 684.0,367.5 684.0,376.5" fill="#9a7024"/>
+<text x="10" y="448" text-anchor="start" font-family="Arial,Helvetica,sans-serif" font-size="20" font-weight="400" fill="#516473">All required output and the final seal remain inside the scored interval.</text>
+</svg>
